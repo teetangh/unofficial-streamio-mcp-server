@@ -45,7 +45,7 @@ export function registerStartTranscription(server: McpServer): void {
         const response = await client.video.startTranscription({
           type: call_type,
           id: call_id,
-          ...(language !== undefined && { language }),
+          language: language ?? "auto",
           ...(transcription_external_storage !== undefined && {
             transcription_external_storage,
           }),

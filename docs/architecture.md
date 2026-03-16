@@ -84,7 +84,7 @@ server.registerTool("tool_name", {
 Three layers:
 
 1. **Zod validation** — MCP SDK validates inputs against schemas before the handler runs
-2. **Tool-level try/catch** — each handler catches SDK errors, formats them via `formatErrorMessage()`
+2. **Tool-level try/catch** — each handler catches SDK errors and returns `toolError(error)` from `src/utils/format.ts`
 3. **Process-level** — top-level catch in `src/index.ts`, logs to stderr
 
 Stream API errors include HTTP status codes and are formatted as `Stream API Error (404): Not Found`.

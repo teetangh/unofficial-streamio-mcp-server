@@ -126,7 +126,7 @@ Start live transcription on a call.
 |-----------|------|----------|-------------|
 | `call_type` | string | Yes | Call type |
 | `call_id` | string | Yes | Call ID |
-| `language` | string | No | Language code: `auto`, `en`, `fr`, `es`, `de`, `it`, `nl`, `pt`, `ja`, `zh`, `ko`, `ar`, `hi`, `ru`, etc. |
+| `language` | string | No | Language code. Supported: `auto`, `en`, `fr`, `es`, `de`, `it`, `nl`, `pt`, `pl`, `ca`, `cs`, `da`, `el`, `fi`, `id`, `ja`, `ru`, `sv`, `ta`, `th`, `tr`, `hu`, `ro`, `zh`, `ar`, `tl`, `he`, `hi`, `hr`, `ko`, `ms`, `no`, `uk`, `bg`, `et`, `sl`, `sk`. Default: `auto`. |
 | `transcription_external_storage` | string | No | External storage name |
 
 ### video_stop_transcription
