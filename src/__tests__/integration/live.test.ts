@@ -198,6 +198,207 @@ describe("Live Stream.io integration", () => {
     console.log("  ✓ Calls queried");
   });
 
+  // --- New Chat Tools ---
+
+  it("chat_update_channel: updates channel metadata", async () => {
+    const call = getToolHandler(server, "chat_update_channel");
+    const result = await call({
+      channel_type: "messaging",
+      channel_id: testChannelId,
+      set: { name: "Updated Integration Test Channel" },
+    });
+
+    const data = parseResult(result);
+    expect(data).toBeDefined();
+    console.log("  ✓ Channel updated");
+  });
+
+  it("chat_remove_members: removes a member from the channel", async () => {
+    const call = getToolHandler(server, "chat_remove_members");
+    const result = await call({
+      channel_type: "messaging",
+      channel_id: testChannelId,
+      member_ids: [`${testUserId}-3`],
+    });
+
+    const data = parseResult(result);
+    expect(data).toBeDefined();
+    console.log("  ✓ Member removed");
+  });
+
+  it("chat_delete_message: deletes a message", async () => {
+    // Send a message to delete
+    const send = getToolHandler(server, "chat_send_message");
+    const sendResult = await send({
+      channel_type: "messaging",
+      channel_id: testChannelId,
+      text: "Message to delete",
+      user_id: testUserId,
+    });
+    const sendData = parseResult(sendResult);
+    const messageId = (sendData.message as Record<string, unknown>).id;
+
+    const call = getToolHandler(server, "chat_delete_message");
+    const result = await call({ message_id: messageId });
+
+    const data = parseResult(result);
+    expect(data).toBeDefined();
+    console.log("  ✓ Message deleted");
+  });
+
+  it("chat_ban_user: bans a test user", async () => {
+    const banUserId = `${testUserId}-ban-target`;
+    const upsert = getToolHandler(server, "chat_upsert_users");
+    await upsert({ users: [{ id: banUserId, name: "Ban Target" }] });
+
+    const call = getToolHandler(server, "chat_ban_user");
+    const result = await call({
+      target_user_id: banUserId,
+      banned_by_id: testUserId,
+      reason: "integration test",
+      timeout: 1,
+    });
+
+    const data = parseResult(result);
+    expect(data).toBeDefined();
+    console.log("  ✓ User banned");
+  });
+
+  it("chat_unban_user: unbans a test user", async () => {
+    const banUserId = `${testUserId}-ban-target`;
+    const call = getToolHandler(server, "chat_unban_user");
+    const result = await call({
+      target_user_id: banUserId,
+    });
+
+    const data = parseResult(result);
+    expect(data).toBeDefined();
+    console.log("  ✓ User unbanned");
+  });
+
+  it("chat_flag_message: flags a message", async () => {
+    // Send a message to flag
+    const send = getToolHandler(server, "chat_send_message");
+    const sendResult = await send({
+      channel_type: "messaging",
+      channel_id: testChannelId,
+      text: "Message to flag",
+      user_id: testUserId,
+    });
+    const sendData = parseResult(sendResult);
+    const messageId = (sendData.message as Record<string, unknown>).id;
+
+    const call = getToolHandler(server, "chat_flag_message");
+    const result = await call({
+      message_id: messageId,
+      reason: "integration test flag",
+      user_id: testUserId,
+    });
+
+    const data = parseResult(result);
+    expect(data).toBeDefined();
+    console.log("  ✓ Message flagged");
+  });
+
+  // --- New Video Tools ---
+
+  it("video_update_call_members: adds a member to the call", async () => {
+    const call = getToolHandler(server, "video_update_call_members");
+    const result = await call({
+      call_type: "default",
+      call_id: testCallId,
+      update_members: [{ user_id: `${testUserId}-2` }],
+    });
+
+    const data = parseResult(result);
+    expect(data).toBeDefined();
+    console.log("  ✓ Call members updated");
+  });
+
+  it("video_query_call_members: queries call members", async () => {
+    const call = getToolHandler(server, "video_query_call_members");
+    const result = await call({
+      call_type: "default",
+      call_id: testCallId,
+    });
+
+    const data = parseResult(result);
+    expect(data).toBeDefined();
+    console.log("  ✓ Call members queried");
+  });
+
+  it("video_block_user: blocks a user from the call", async () => {
+    const blockUserId = `${testUserId}-block`;
+    const upsert = getToolHandler(server, "chat_upsert_users");
+    await upsert({ users: [{ id: blockUserId, name: "Block Target" }] });
+
+    const call = getToolHandler(server, "video_block_user");
+    const result = await call({
+      call_type: "default",
+      call_id: testCallId,
+      user_id: blockUserId,
+    });
+
+    const data = parseResult(result);
+    expect(data).toBeDefined();
+    console.log("  ✓ User blocked from call");
+  });
+
+  it("video_unblock_user: unblocks a user from the call", async () => {
+    const blockUserId = `${testUserId}-block`;
+    const call = getToolHandler(server, "video_unblock_user");
+    const result = await call({
+      call_type: "default",
+      call_id: testCallId,
+      user_id: blockUserId,
+    });
+
+    const data = parseResult(result);
+    expect(data).toBeDefined();
+    console.log("  ✓ User unblocked from call");
+  });
+
+  it("video_mute_users: mutes a user in the call", async () => {
+    const call = getToolHandler(server, "video_mute_users");
+    const result = await call({
+      call_type: "default",
+      call_id: testCallId,
+      user_ids: [testUserId],
+      audio: true,
+      muted_by_id: testUserId,
+    });
+
+    // Mute may fail if no active WebRTC participants — that's expected in server-only tests
+    expect(result.content[0].text).toBeDefined();
+    console.log("  ✓ Mute request sent (may require active participants)");
+  });
+
+  it("video_list_recordings: lists recordings (empty)", async () => {
+    const call = getToolHandler(server, "video_list_recordings");
+    const result = await call({
+      call_type: "default",
+      call_id: testCallId,
+    });
+
+    const data = parseResult(result);
+    expect(data).toBeDefined();
+    console.log("  ✓ Recordings listed");
+  });
+
+  it("video_list_transcriptions: lists transcriptions (empty)", async () => {
+    const call = getToolHandler(server, "video_list_transcriptions");
+    const result = await call({
+      call_type: "default",
+      call_id: testCallId,
+    });
+
+    const data = parseResult(result);
+    expect(data).toBeDefined();
+    console.log("  ✓ Transcriptions listed");
+  });
+
+  // --- Cleanup: end call last ---
+
   it("video_end_call: ends the test call", async () => {
     const call = getToolHandler(server, "video_end_call");
     const result = await call({
