@@ -4,7 +4,7 @@
  *
  * Run with: STREAM_API_KEY=... STREAM_API_SECRET=... npm run test:live
  */
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerAllTools } from "../../tools/index.js";
 
