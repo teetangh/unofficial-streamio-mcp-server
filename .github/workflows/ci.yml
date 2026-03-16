@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Smoke test — MCP server starts and lists tools
+        run: |
+          TOOL_COUNT=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"0.0.1"}}}\n{"jsonrpc":"2.0","method":"notifications/initialized"}\n{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n' \
+            | STREAM_API_KEY=fake STREAM_API_SECRET=fake node build/index.js 2>/dev/null \
+            | grep -o '"name":"' | wc -l)
+          echo "Tools found: $TOOL_COUNT"
+          # 29 tools + 1 server name = 30 name fields
+          if [ "$TOOL_COUNT" -lt 29 ]; then
+            echo "Expected at least 29 tools, got $TOOL_COUNT"
+            exit 1
+          fi
+
+  live-tests:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build-and-test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Live integration tests
+        env:
+          STREAM_API_KEY: ${{ secrets.STREAM_API_KEY }}
+          STREAM_API_SECRET: ${{ secrets.STREAM_API_SECRET }}
+        run: |
+          if [ -z "$STREAM_API_KEY" ] || [ -z "$STREAM_API_SECRET" ]; then
+            echo "Skipping live tests — STREAM_API_KEY/STREAM_API_SECRET secrets not configured"
+            exit 0
+          fi
+          npm run test:live

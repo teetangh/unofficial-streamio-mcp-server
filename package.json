@@ -4,13 +4,47 @@
   "description": "Unofficial MCP server for Stream.io Chat and Video APIs",
   "type": "module",
   "main": "build/index.js",
+  "bin": {
+    "unofficial-streamio-mcp-server": "build/index.js"
+  },
+  "files": [
+    "build",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "node build/index.js",
     "dev": "tsc --watch",
+    "prepublishOnly": "npm run build",
     "test": "vitest run --exclude src/__tests__/integration/",
     "test:watch": "vitest --exclude src/__tests__/integration/",
     "test:live": "vitest run --dir src/__tests__/integration/"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "stream",
+    "stream-io",
+    "getstream",
+    "chat",
+    "video",
+    "claude",
+    "ai",
+    "llm"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/teetangh/unofficial-streamio-mcp-server.git"
+  },
+  "homepage": "https://github.com/teetangh/unofficial-streamio-mcp-server#readme",
+  "bugs": {
+    "url": "https://github.com/teetangh/unofficial-streamio-mcp-server/issues"
+  },
+  "author": "teetangh",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
@@ -21,6 +55,5 @@
     "@types/node": "^22.0.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
-  },
-  "license": "MIT"
+  }
 }
