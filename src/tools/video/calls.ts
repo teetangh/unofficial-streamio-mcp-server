@@ -1,4 +1,9 @@
-import type { QueryCallsResponse } from "@stream-io/node-sdk";
+import type {
+  CallResponse,
+  GetCallReportResponse,
+  GroupedStatsResponse,
+  QueryCallsResponse,
+} from "@stream-io/node-sdk";
 import { z } from "zod";
 import {
   callMember,
@@ -12,8 +17,44 @@ import {
   sortParams,
 } from "../../schemas/common.js";
 import { ToolInputError } from "../../utils/errors.js";
-import { omit } from "../../utils/format.js";
+import { pick, userRef } from "../../utils/format.js";
 import { defineTool, type AnyToolDef } from "../define.js";
+
+/** Identity, lifecycle and the fields `filter_conditions` and `sort` accept. */
+const CALL_LIST_KEYS = [
+  "cid",
+  "type",
+  "id",
+  "created_at",
+  "updated_at",
+  "starts_at",
+  "ended_at",
+  "current_session_id",
+  "backstage",
+  "recording",
+  "transcribing",
+  "captioning",
+  "team",
+  "custom",
+  "blocked_user_ids",
+] as const satisfies readonly (keyof CallResponse)[];
+
+/**
+ * Neither a call report nor call stats can be created — Stream derives both
+ * from call activity — so the generic "Create it first" hint is not actionable
+ * and pushes attention away from Stream's own message, which is the part that
+ * distinguishes a report whose retention window has expired from a call that
+ * never had a session at all.
+ */
+const SESSION_DERIVED_NOT_FOUND =
+  'Not found. Call reports and call stats are derived from call activity and cannot be created — read Stream\'s message above: "expired" means the retention window has passed, while "does not exist" means the call never had a session. video_query_call_stats keeps per-session durations after a report has expired.';
+
+/** The busiest few groups; the tail of a by-country breakdown is noise. */
+const topGroups = (groups: GroupedStatsResponse[] | undefined, keep = 5) =>
+  groups
+    ?.slice()
+    .sort((a, b) => b.unique - a.unique)
+    .slice(0, keep);
 
 const settingsOverride = z
   .record(z.string(), z.unknown())
@@ -180,15 +221,14 @@ const queryCalls = defineTool({
     next: nextCursor,
     prev: prevCursor,
   },
-  // A raw page is mostly per-call `settings` blobs — ~12KB per call.
+  // A raw page is mostly per-call `settings` blobs — ~12KB per call — plus a
+  // fully expanded `created_by` user on every row.
   compact: (raw: QueryCallsResponse) => ({
     calls: (raw.calls ?? []).map((entry) => ({
-      ...(omit(entry.call, ["settings", "ingress", "egress", "thumbnails"]) as object),
+      ...pick(entry.call, CALL_LIST_KEYS),
+      created_by: userRef(entry.call?.created_by),
       member_count: entry.members?.length,
-      members: entry.members?.slice(0, 10).map((member) => ({
-        user_id: member.user_id,
-        role: member.role,
-      })),
+      member_ids: entry.members?.slice(0, 10).map((member) => member.user_id),
     })),
     next: raw.next,
     prev: raw.prev,
@@ -363,16 +403,91 @@ const getCallReport = defineTool({
   title: "Get call report",
   toolset: "video-admin",
   description:
-    "Get quality and participation statistics for a finished call session — participants, duration, latency and jitter.",
+    'Get quality and participation statistics for a finished call session — participants, duration, latency and jitter. Richer than video_query_call_stats but retained only for a limited window, after which Stream answers "call report data expired"; use video_query_call_stats for durations older than that. Stream empties `session.participants` once a session ends, so that list being empty is Stream\'s own behaviour, not compaction.',
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
     idempotentHint: true,
     openWorldHint: true,
   },
+  notFoundHint: SESSION_DERIVED_NOT_FOUND,
   inputSchema: {
     ...callRef,
     session_id: z.string().optional().describe("Specific session ID. Omit for the latest session."),
+  },
+  // A report is small until the call is long: `count_over_time` carries one
+  // entry per minute, so a two-hour call is thousands of numbers, and the
+  // default shrinker would cut a hole in the middle of that series rather than
+  // summarise it. It is also why `verbose:true` looked like a no-op — on a
+  // short call the generic shrinker genuinely had nothing to remove.
+  compact: (raw: GetCallReportResponse) => {
+    const participants = raw.report.participants;
+    const byMinute = participants.count_over_time?.by_minute ?? [];
+    const chatByMinute = raw.chat_activity?.messages?.count_over_time ?? [];
+    const session = raw.session;
+
+    return {
+      session_id: raw.session_id,
+      call: raw.report.call,
+      user_ratings: raw.report.user_ratings,
+      participants: {
+        ...pick(participants, ["sum", "unique", "max_concurrent"]),
+        by_country: topGroups(participants.by_country),
+        by_browser: topGroups(participants.by_browser),
+        by_device: topGroups(participants.by_device),
+        by_operating_system: topGroups(participants.by_operating_system),
+        publishers: pick(participants.publishers, ["total", "unique"]),
+        subscribers: participants.subscribers,
+        over_time:
+          byMinute.length > 0
+            ? {
+                minutes: byMinute.length,
+                peak: Math.max(...byMinute.map((point) => point.max)),
+                from: byMinute[0].start_ts,
+                to: byMinute[byMinute.length - 1].start_ts,
+              }
+            : undefined,
+      },
+      chat_activity:
+        chatByMinute.length > 0
+          ? {
+              messages: chatByMinute.reduce((total, point) => total + point.count, 0),
+              minutes: chatByMinute.length,
+            }
+          : undefined,
+      video_reactions: raw.video_reactions?.map((entry) => ({
+        reaction: entry.reaction,
+        count: (entry.count_over_time?.by_minute ?? []).reduce(
+          (total, point) => total + point.count,
+          0
+        ),
+      })),
+      digest_available: raw.digest !== undefined,
+      session: session && {
+        ...pick(session, [
+          "id",
+          "started_at",
+          "ended_at",
+          "live_started_at",
+          "live_ended_at",
+          "anonymous_participant_count",
+          "participants_count_by_role",
+        ]),
+        accepted_count: Object.keys(session.accepted_by).length,
+        rejected_count: Object.keys(session.rejected_by).length,
+        missed_count: Object.keys(session.missed_by).length,
+        participants: session.participants.map((participant) => ({
+          user_id: participant.user.id,
+          role: participant.role,
+          joined_at: participant.joined_at,
+        })),
+      },
+      _hint:
+        (session && session.participants.length === 0
+          ? "`session.participants` is empty because Stream clears the live-participant list once a session ends — it is not being withheld here; the aggregate breakdowns above are the record of who attended. "
+          : "") +
+        "Grouped stats are the 5 largest by unique users, per-minute series are summarised, and `digest` (livestream delivery diagnostics) is omitted. Pass verbose:true for the full report.",
+    };
   },
   handler: async (args, client) =>
     client.video.getCallReport(
@@ -385,13 +500,14 @@ const queryCallStats = defineTool({
   title: "Query call stats",
   toolset: "video-admin",
   description:
-    "Query aggregated call quality statistics across calls. Filter by {call_cid: {$eq: 'default:my-call'}} or a time range.",
+    "Query aggregated call quality statistics across calls — one row per call session, with `call_duration_seconds`. This is the bulk, non-expiring source of session durations: it reaches back to the app's first call, where video_get_call_report expires. Filter by {call_cid: {$eq: 'default:my-call'}}. A time range needs an explicit $and of single-operator expressions, because Stream rejects two operators on one field: {$and: [{created_at: {$gt: '2026-06-01T00:00:00Z'}}, {created_at: {$lt: '2026-09-01T00:00:00Z'}}]}.",
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
     idempotentHint: true,
     openWorldHint: true,
   },
+  notFoundHint: SESSION_DERIVED_NOT_FOUND,
   inputSchema: {
     filter_conditions: filterConditions,
     sort: sortParams,

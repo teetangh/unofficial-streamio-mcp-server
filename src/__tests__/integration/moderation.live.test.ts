@@ -190,6 +190,15 @@ suite("live: moderation, users and app", () => {
     const limits = await harness.call("app_get_rate_limits", { server_side: true });
     expect(limits.server_side).toBeDefined();
 
+    // A named endpoint must come back whether or not its quota has been used;
+    // untouched is the normal case, and it used to return nothing.
+    const named = await harness.call("app_get_rate_limits", {
+      server_side: true,
+      endpoints: "UpdateChannelPartial,NoSuchEndpointXYZ",
+    });
+    expect(named.server_side.limits.UpdateChannelPartial.limit).toBeGreaterThan(0);
+    expect(named.unmatched_endpoints).toEqual(["NoSuchEndpointXYZ"]);
+
     const channelTypes = await harness.call("chat_list_channel_types");
     expect(channelTypes.channel_types.map((t: any) => t.name)).toContain("messaging");
 
@@ -201,6 +210,14 @@ suite("live: moderation, users and app", () => {
 
     const defaultCallType = await harness.call("video_get_call_type", { name: "default" });
     expect(defaultCallType.name).toBe("default");
+    // Grants are the reason to read a call type, and they are a NOISE_KEY —
+    // any shrink-based compaction would delete them.
+    expect(Object.keys(defaultCallType.grants).length).toBeGreaterThan(0);
+    expect(defaultCallType.settings.backstage).toBeDefined();
+    expect(defaultCallType.settings.recording.layout.options.count).toBeGreaterThan(0);
+    expect(defaultCallType.settings.recording.layout.options.keys).toBeUndefined();
+    // The whole payload used to be ~13.8KB, most of it layout styling.
+    expect(JSON.stringify(defaultCallType).length).toBeLessThan(8000);
 
     const edges = await harness.call("video_get_edges");
     expect(edges.edges.length).toBeGreaterThan(0);

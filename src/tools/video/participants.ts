@@ -1,3 +1,4 @@
+import type { QueryCallParticipantsResponse } from "@stream-io/node-sdk";
 import { z } from "zod";
 import {
   callMember,
@@ -177,7 +178,7 @@ const queryCallParticipants = defineTool({
   title: "Query call participants",
   toolset: "video",
   description:
-    "List users connected to a call's active session, filtered by user ID or by which tracks they are publishing. Unlike members, participants are people actually in the call right now. Stream requires at least one filter, so pass `user_ids` and/or `published_tracks`.",
+    "List users connected to a call's active session, filtered by user ID or by which tracks they are publishing. Unlike members, participants are people actually in the call right now — this reports the CURRENTLY LIVE session only, so a call whose session has ended returns an empty list; use video_get_call_report for a session that is over. Stream requires at least one filter, so pass `user_ids` and/or `published_tracks`.",
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -196,7 +197,32 @@ const queryCallParticipants = defineTool({
       .describe("Restrict to participants publishing these track types"),
     limit: limit(100, 25),
   },
-  compact: bounded,
+  // The raw response wraps a handful of participant rows in an entire
+  // CallResponse — settings, the ingress encoder ladder, egress addresses —
+  // so the tool's whole subject was the smallest part of its own payload, and
+  // often empty, because only a live session has participants.
+  compact: (raw: QueryCallParticipantsResponse) => ({
+    call_cid: raw.call.cid,
+    session_id: raw.call.current_session_id || undefined,
+    backstage: raw.call.backstage,
+    total_participants: raw.total_participants,
+    participants: raw.participants.map((participant) => ({
+      user_id: participant.user.id,
+      name: participant.user.name,
+      role: participant.role,
+      joined_at: participant.joined_at,
+      user_session_id: participant.user_session_id,
+    })),
+    member_count: raw.members.length,
+    members: raw.members.slice(0, 10).map((member) => ({
+      user_id: member.user_id,
+      role: member.role,
+    })),
+    _hint:
+      raw.participants.length === 0
+        ? "No participants. This endpoint sees only users connected to the call's current session, so an empty list means nobody is connected right now — `session_id` is absent when no session is live. Use video_query_call_members for the roster, or video_get_call_report for a session that has ended."
+        : "Participants are who is connected right now; members are the roster. Use video_get_call for the call's settings, ingress and egress.",
+  }),
   handler: async (args, client) => {
     if (args.user_ids === undefined && args.published_tracks === undefined) {
       throw new ToolInputError(

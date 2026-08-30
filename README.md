@@ -96,7 +96,9 @@ Every tool also accepts `verbose: true` to bypass response compaction and return
 
 ### Response compaction
 
-Stream responses are large — a `queryChannels` page is mostly channel-type config blobs. By default results are compacted: noisy structural keys (`config`, `own_capabilities`, `grants`, `commands`) are dropped, arrays over 20 items are truncated with a marker, and long strings are trimmed. Pass `verbose: true` when you genuinely need the full payload.
+Stream responses are large — a `queryChannels` page is mostly channel-type config blobs. By default results are compacted: noisy structural keys (`config`, `own_capabilities`, `grants`, `commands`) are dropped, arrays over 20 items are truncated with a marker, and long strings are trimmed. List-shaped tools go further and project each row to its identity plus the fields you can filter and sort on, so a full page fits the budget instead of losing rows to boilerplate repeated on every row.
+
+If a result still exceeds `STREAM_MCP_MAX_RESPONSE_BYTES`, indentation is dropped before any data is, and only then are list entries shed — the largest number that still fits, disclosed as `_omitted_items`. Pass `verbose: true` when you genuinely need the full payload.
 
 ## Not covered
 

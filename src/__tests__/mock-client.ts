@@ -17,8 +17,12 @@ export interface MockClient {
  * spy that records `<namespace>.<method>` and the payload it was given, so a
  * test can assert the exact request a tool builds without any network.
  */
-/** Product namespaces on StreamClient that hold methods rather than being one. */
-const NAMESPACES = new Set(["chat", "video", "moderation", "feeds"]);
+/**
+ * Product namespaces on StreamClient that hold methods rather than being one.
+ * `apiClient` is here because `chat_get_channel` calls Stream's GET channel
+ * endpoint through it — the typed SDK method for that endpoint is broken.
+ */
+const NAMESPACES = new Set(["chat", "video", "moderation", "feeds", "apiClient"]);
 
 export function mockClient(overrides: Record<string, unknown> = {}): MockClient {
   const calls: RecordedCall[] = [];
@@ -27,7 +31,9 @@ export function mockClient(overrides: Record<string, unknown> = {}): MockClient 
   const record =
     (path: string) =>
     (...args: unknown[]) => {
-      calls.push({ path, args: args[0] });
+      // Every SDK method takes a single request object; `apiClient.sendRequest`
+      // is positional, so the whole list is recorded and a case asserts on it.
+      calls.push({ path, args: args.length > 1 ? args : args[0] });
       if (path in overrides) return overrides[path];
       return Promise.resolve(response);
     };

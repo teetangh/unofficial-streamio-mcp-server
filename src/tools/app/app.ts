@@ -1,4 +1,8 @@
-import type { GetApplicationResponse, GetRateLimitsResponse } from "@stream-io/node-sdk";
+import type {
+  GetApplicationResponse,
+  GetRateLimitsResponse,
+  LimitInfoResponse,
+} from "@stream-io/node-sdk";
 import { z } from "zod";
 import { ToolInputError } from "../../utils/errors.js";
 
@@ -135,7 +139,7 @@ const getRateLimits = defineTool({
   title: "Get rate limits",
   toolset: "app",
   description:
-    "Read the app's current API rate limits and remaining quota, optionally narrowed to specific endpoints.",
+    "Read the app's current API rate limits and remaining quota. With no `endpoints`, only the endpoints with quota already consumed are listed, out of ~230. Naming endpoints returns their ceilings whether or not any quota has been used. Note that video endpoints are almost absent from this endpoint — of 233 server-side entries only DeleteCall and VideoConnect are video — so a video ceiling has to be read from the `metadata.rateLimit` any video tool returns.",
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -143,33 +147,54 @@ const getRateLimits = defineTool({
     openWorldHint: true,
   },
   inputSchema: {
-    server_side: z.boolean().optional().describe("Include server-side limits"),
+    server_side: z.boolean().optional().describe("Include server-side limits (default: true)"),
     endpoints: z
       .string()
       .optional()
       .describe(
-        "Comma-separated endpoint names to narrow the result, e.g. 'QueryChannels,SendMessage'"
+        "Comma-separated endpoint names to narrow the result, e.g. 'QueryChannels,SendMessage'. Names Stream does not recognise come back under `unmatched_endpoints` rather than being dropped silently."
       ),
   },
-  // The app exposes ~230 endpoints; only the ones with consumed quota matter.
-  compact: (raw: GetRateLimitsResponse) => {
-    const summarise = (group: Record<string, any> | undefined) => {
+  // The app exposes ~230 endpoints; unasked-for, only the ones with consumed
+  // quota matter. Once the caller has NAMED endpoints, that filter is exactly
+  // wrong: the ceiling is the answer they came for, and an untouched ceiling
+  // is the normal case — filtering it out returned an empty result for the
+  // question this tool exists to answer.
+  compact: (raw: GetRateLimitsResponse, args) => {
+    const requested = args.endpoints
+      ?.split(",")
+      .map((name) => name.trim())
+      .filter(Boolean);
+    const matched = new Set<string>();
+
+    const summarise = (group: Record<string, LimitInfoResponse> | undefined) => {
       if (!group) return undefined;
-      const used = Object.entries(group).filter(
-        ([, value]) => value?.remaining !== undefined && value.remaining < value.limit
-      );
+      const entries = Object.entries(group);
+      for (const [name] of entries) matched.add(name);
+      if (requested) {
+        return { endpoint_count: entries.length, limits: Object.fromEntries(entries) };
+      }
+      const used = entries.filter(([, value]) => value.remaining < value.limit);
       return {
-        endpoint_count: Object.keys(group).length,
+        endpoint_count: entries.length,
         consumed: Object.fromEntries(used.slice(0, 40)),
       };
     };
-    return {
+
+    const groups = {
       server_side: summarise(raw.server_side),
       android: summarise(raw.android),
       ios: summarise(raw.ios),
       web: summarise(raw.web),
-      _hint:
-        "Only endpoints with consumed quota are listed. Pass `endpoints` to inspect specific ones, or verbose:true for all.",
+    };
+    const unmatched = requested?.filter((name) => !matched.has(name));
+
+    return {
+      ...groups,
+      unmatched_endpoints: unmatched?.length ? unmatched : undefined,
+      _hint: requested
+        ? "Every endpoint you named that Stream recognised is listed with its ceiling, used or not. Anything in `unmatched_endpoints` is not a rate-limited endpoint name."
+        : "Only endpoints with quota already consumed are listed. Name endpoints in `endpoints` to see their ceilings regardless of use, or pass verbose:true for all ~230.",
     };
   },
   handler: async (args, client) =>

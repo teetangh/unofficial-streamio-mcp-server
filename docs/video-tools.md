@@ -190,7 +190,7 @@ Mute participants in a call. Pass `user_ids` for specific people or `mute_all_us
 
 ### `video_query_call_participants` — read-only, idempotent
 
-List users connected to a call's active session, filtered by user ID or by which tracks they are publishing. Unlike members, participants are people actually in the call right now. Stream requires at least one filter, so pass `user_ids` and/or `published_tracks`.
+List users connected to a call's active session, filtered by user ID or by which tracks they are publishing. Unlike members, participants are people actually in the call right now — this reports the CURRENTLY LIVE session only, so a call whose session has ended returns an empty list; use video_get_call_report for a session that is over. Stream requires at least one filter, so pass `user_ids` and/or `published_tracks`.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -402,7 +402,7 @@ Stop every RTMP broadcast running on a call.
 
 ### `video_get_call_report` — read-only, idempotent
 
-Get quality and participation statistics for a finished call session — participants, duration, latency and jitter.
+Get quality and participation statistics for a finished call session — participants, duration, latency and jitter. Richer than video_query_call_stats but retained only for a limited window, after which Stream answers "call report data expired"; use video_query_call_stats for durations older than that. Stream empties `session.participants` once a session ends, so that list being empty is Stream's own behaviour, not compaction.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -412,7 +412,7 @@ Get quality and participation statistics for a finished call session — partici
 
 ### `video_query_call_stats` — read-only, idempotent
 
-Query aggregated call quality statistics across calls. Filter by {call_cid: {$eq: 'default:my-call'}} or a time range.
+Query aggregated call quality statistics across calls — one row per call session, with `call_duration_seconds`. This is the bulk, non-expiring source of session durations: it reaches back to the app's first call, where video_get_call_report expires. Filter by {call_cid: {$eq: 'default:my-call'}}. A time range needs an explicit $and of single-operator expressions, because Stream rejects two operators on one field: {$and: [{created_at: {$gt: '2026-06-01T00:00:00Z'}}, {created_at: {$lt: '2026-09-01T00:00:00Z'}}]}.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -440,7 +440,7 @@ List the app's call types with their headline settings. Returns a summary — us
 
 ### `video_get_call_type` — read-only, idempotent
 
-Get one call type's full configuration, including its permission grants.
+Get one call type's configuration and its permission grants. Composite-layout styling options and the ingress encoder ladder are summarised rather than listed — pass verbose:true for those values.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -496,12 +496,12 @@ Update the Stream app's configuration. Changes are global and take effect immedi
 
 ### `app_get_rate_limits` — read-only, idempotent
 
-Read the app's current API rate limits and remaining quota, optionally narrowed to specific endpoints.
+Read the app's current API rate limits and remaining quota. With no `endpoints`, only the endpoints with quota already consumed are listed, out of ~230. Naming endpoints returns their ceilings whether or not any quota has been used. Note that video endpoints are almost absent from this endpoint — of 233 server-side entries only DeleteCall and VideoConnect are video — so a video ceiling has to be read from the `metadata.rateLimit` any video tool returns.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `server_side` | boolean | no | Include server-side limits |
-| `endpoints` | string | no | Comma-separated endpoint names to narrow the result, e.g. 'QueryChannels,SendMessage' |
+| `server_side` | boolean | no | Include server-side limits (default: true) |
+| `endpoints` | string | no | Comma-separated endpoint names to narrow the result, e.g. 'QueryChannels,SendMessage'. Names Stream does not recognise come back under `unmatched_endpoints` rather than being dropped silently. |
 
 ### `app_get_task` — read-only, idempotent
 

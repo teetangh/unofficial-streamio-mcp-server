@@ -72,12 +72,17 @@ suite("live: channel types, call types and app settings", () => {
       settings: { backstage: { enabled: true } },
     });
     expect(updated.settings.backstage.enabled).toBe(true);
+    // Grants survive the projection on write responses too — a shrink-based
+    // path would silently drop them, since `grants` is a NOISE_KEY.
+    expect(updated.grants.host).toContain("join-call");
 
     const deleted = await harness.call("video_delete_call_type", { name: callTypeName });
     expect(deleted.duration).toBeDefined();
   });
 
-  it("round-trips an app setting without changing it", async () => {
+  // Three sequential round trips to Stream; the 5s default is not enough
+  // reliably, and a timeout here fails the whole live gate on main.
+  it("round-trips an app setting without changing it", { timeout: 60_000 }, async () => {
     const before = await harness.call("app_get_settings");
     const current = before.app.async_url_enrich_enabled;
     // Coercing an absent value to false would make the round-trip assert

@@ -1,3 +1,4 @@
+import type { FullUserResponse, QueryUsersResponse, StreamClient } from "@stream-io/node-sdk";
 import { z } from "zod";
 import {
   customData,
@@ -8,8 +9,104 @@ import {
   sortParams,
 } from "../../schemas/common.js";
 import { ToolInputError } from "../../utils/errors.js";
-import { bounded } from "../../utils/format.js";
+import { pick } from "../../utils/format.js";
 import { defineTool, type AnyToolDef } from "../define.js";
+
+/** Identity plus the fields `filter_conditions` and `sort` accept. */
+const USER_LIST_KEYS = [
+  "id",
+  "name",
+  "role",
+  "created_at",
+  "updated_at",
+  "last_active",
+  "deactivated_at",
+  "deleted_at",
+  "ban_expires",
+  "language",
+  "teams",
+  "custom",
+] as const satisfies readonly (keyof FullUserResponse)[];
+
+/**
+ * Four booleans cost four lines on every row and are false for nearly every
+ * user. As one array they cost one, and `flags: []` still says "none set".
+ */
+const USER_FLAG_KEYS = [
+  "banned",
+  "shadow_banned",
+  "invisible",
+  "online",
+] as const satisfies readonly (keyof FullUserResponse)[];
+
+/** What a `deactivated_only` scan covered, so a caller can trust the count. */
+interface DeactivatedScan {
+  /** Users examined, not users returned. */
+  scanned: number;
+  pages: number;
+  /** False when the page budget ran out before the end of the app's users. */
+  complete: boolean;
+  /** Pass back as `after_id` to continue an incomplete scan. */
+  next_id?: string;
+}
+
+const SCAN_PAGE_SIZE = 100;
+const SCAN_MAX_PAGES = 25;
+
+/**
+ * Finds deactivated users by scanning, because Stream cannot select them.
+ * Every operator on `deactivated_at` is rejected ("operator $exists on custom
+ * field \"deactivated_at\" is not supported for query users") and
+ * `include_deactivated_users` only mixes them in with everyone else.
+ *
+ * Paging is keyset — ascending id, `{id: {$gt: cursor}}` — because Stream caps
+ * `offset` at 1000, which an app of any size exceeds.
+ */
+async function scanDeactivated(
+  client: StreamClient,
+  args: {
+    filter_conditions?: Record<string, unknown>;
+    limit: number;
+    after_id?: string;
+    presence?: boolean;
+  }
+): Promise<QueryUsersResponse & { users: FullUserResponse[]; scan: DeactivatedScan }> {
+  const matched: FullUserResponse[] = [];
+  let cursor = args.after_id ?? "";
+  let scanned = 0;
+  let pages = 0;
+  let complete = false;
+  let last: QueryUsersResponse | undefined;
+
+  while (pages < SCAN_MAX_PAGES && matched.length < args.limit) {
+    const page = await client.queryUsers({
+      payload: defined({
+        filter_conditions: { ...(args.filter_conditions ?? {}), id: { $gt: cursor } },
+        sort: [{ field: "id", direction: 1 }],
+        limit: SCAN_PAGE_SIZE,
+        presence: args.presence,
+        include_deactivated_users: true,
+      }),
+    });
+    last = page;
+    pages += 1;
+    scanned += page.users.length;
+    for (const user of page.users) {
+      if (user.deactivated_at !== undefined) matched.push(user);
+    }
+    if (page.users.length < SCAN_PAGE_SIZE) {
+      complete = true;
+      break;
+    }
+    cursor = page.users[page.users.length - 1].id;
+  }
+
+  return {
+    ...(last ?? { duration: "0ms" }),
+    users: matched.slice(0, args.limit),
+    scan: defined({ scanned, pages, complete, next_id: complete ? undefined : cursor }),
+  };
+}
 
 const userSchema = z.object({
   id: z.string().min(1).describe("Unique user ID"),
@@ -55,7 +152,7 @@ const queryUsers = defineTool({
   title: "Query users",
   toolset: "users",
   description:
-    "Search and filter users. Common filters: {id: {$in: ['alice','bob']}}, {role: {$eq: 'admin'}}, {name: {$autocomplete: 'ali'}}, {banned: true}, {last_active: {$gt: '2026-08-01T00:00:00Z'}}.",
+    "Search and filter users. Common filters: {id: {$in: ['alice','bob']}}, {role: {$eq: 'admin'}}, {name: {$autocomplete: 'ali'}}, {banned: true}, {last_active: {$gt: '2026-08-01T00:00:00Z'}}. Stream rejects any operator on `deactivated_at`, so pass `deactivated_only: true` to enumerate deactivated users.",
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -69,11 +166,49 @@ const queryUsers = defineTool({
     limit: limit(100, 10),
     offset,
     presence: z.boolean().optional().describe("Include online/presence state"),
-    include_deactivated_users: z.boolean().optional().describe("Include deactivated users"),
+    include_deactivated_users: z
+      .boolean()
+      .optional()
+      .describe(
+        "Include deactivated users alongside active ones. It cannot isolate them — use `deactivated_only` for that."
+      ),
+    deactivated_only: z
+      .boolean()
+      .optional()
+      .describe(
+        "Return only deactivated users. Stream cannot filter on `deactivated_at`, so this SCANS: it pages the app by ascending user id (up to 25 pages of 100) and keeps the deactivated rows. The `scan` block in the response reports how many users were examined and, if the budget ran out, the `next_id` to resume from via `after_id`. Cannot be combined with `offset` or `sort`."
+      ),
+    after_id: z
+      .string()
+      .optional()
+      .describe("Resume a `deactivated_only` scan from this user id (the previous `scan.next_id`)"),
   },
-  compact: bounded,
-  handler: async (args, client) =>
-    client.queryUsers({
+  // A raw user row is ~480 bytes of devices, mutes and unread counters, so a
+  // page of 100 blew the byte budget and lost three quarters of its rows.
+  compact: (raw: QueryUsersResponse | Awaited<ReturnType<typeof scanDeactivated>>) => ({
+    users: raw.users.map((user) => ({
+      ...pick(user, USER_LIST_KEYS),
+      flags: USER_FLAG_KEYS.filter((key) => user[key] === true),
+    })),
+    ...("scan" in raw ? { scan: raw.scan } : {}),
+    _hint:
+      "Identity and filterable fields only; `flags` lists which of banned, shadow_banned, invisible and online are set. Devices, mutes, unread counts and privacy settings are omitted — pass verbose:true for the raw page.",
+  }),
+  handler: async (args, client) => {
+    if (args.deactivated_only) {
+      if (args.offset !== undefined || args.sort !== undefined) {
+        throw new ToolInputError(
+          "`deactivated_only` pages by ascending user id, so `offset` and `sort` do not apply. Resume a partial scan with `after_id`."
+        );
+      }
+      return scanDeactivated(client, {
+        filter_conditions: args.filter_conditions,
+        limit: args.limit ?? 10,
+        after_id: args.after_id,
+        presence: args.presence,
+      });
+    }
+    return client.queryUsers({
       payload: defined({
         filter_conditions: args.filter_conditions ?? {},
         sort: args.sort,
@@ -82,7 +217,8 @@ const queryUsers = defineTool({
         presence: args.presence,
         include_deactivated_users: args.include_deactivated_users,
       }),
-    }),
+    });
+  },
 });
 
 const updateUsersPartial = defineTool({

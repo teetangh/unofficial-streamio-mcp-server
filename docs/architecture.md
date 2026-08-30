@@ -67,7 +67,13 @@ Nothing escapes to the process; `src/index.ts`'s handlers exist for genuinely un
 
 ## Response compaction
 
-`shrink()` in `src/utils/format.ts` walks a response and drops keys that are large and rarely actionable (`config`, `own_capabilities`, `grants`, `commands`, `push_notifications`, `thumbnails`), caps arrays at 20 items with an `_omitted_items` marker, and trims strings over 2000 characters. Tools whose payload _is_ one of those blobs (`chat_get_channel_type`, `video_get_call_type`, `app_get_settings`) set `compact: false`.
+`shrink()` in `src/utils/format.ts` walks a response and drops keys that are large and rarely actionable (`config`, `own_capabilities`, `grants`, `commands`, `push_notifications`, `thumbnails`), caps arrays at 20 items with an `_omitted_items` marker, and trims strings over 2000 characters. Tools whose payload _is_ one of those blobs (`chat_get_channel_type`) set `compact: false`.
+
+`shrink()` is the fallback, not the plan. Any tool that returns a list has an explicit projection instead — `pick()` keeps the identity and filterable fields of a row, `userRef()` reduces an embedded user to `{id, name}`, `summarizeRecord()` collapses a keyed blob to its size. The generic shrinker cannot express "keep the rows, drop what repeats on every one of them", and a per-row constant like `own_capabilities` is what a 30 KB budget gets spent on otherwise. A projection also receives the call's arguments, so it can keep what the caller explicitly asked for.
+
+Note that `grants` and `commands` are dropped by `shrink()` and cannot be recovered downstream, so a tool whose subject is permission grants (`video_get_call_type`) must name them in its own projection.
+
+`serialize()` then enforces the byte cap in three steps: pretty-printed, minified, and finally the largest prefix of the longest list that fits, found by bisection and disclosed as `_omitted_items`. Indentation is shed before data because it carries none.
 
 Request-side defaults matter as much: `chat_query_channels` sends `message_limit: 0`, because 30 channels × 25 messages is tens of thousands of tokens.
 
@@ -77,6 +83,7 @@ Request-side defaults matter as much: `chat_query_channels` sends `message_limit
 - `server.test.ts` — a real `Client` over `InMemoryTransport`. This is the only layer that exercises zod validation, so schema regressions surface here.
 - `tools/payloads.test.ts` — every one of the 118 tools is invoked against a recording mock `StreamClient` and asserted against the **exact** payload it should send. A coverage test fails if a new tool has no case.
 - `tools/rejections.test.ts` — the cross-field rules, asserting no SDK call is made.
+- `tools/compaction.test.ts` — every bespoke `compact` projection, driven through `applyCompaction` so the `verbose` and default-`shrink` branches are covered too.
 - `integration/*.live.test.ts` — real Stream API, namespaced `mcptest-*` fixtures, teardown in `afterAll`. Skipped without credentials.
 
 Nothing reads `server["_registeredTools"]` or any other MCP SDK internal.

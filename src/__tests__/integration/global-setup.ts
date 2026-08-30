@@ -10,11 +10,19 @@
  * rate limited, and removing them promptly keeps the app tidy mid-run.
  */
 import { StreamClient } from "@stream-io/node-sdk";
+import { config } from "dotenv";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ALL_TOOLS } from "../../tools/registry.js";
 import { FIXTURE_PREFIX } from "./harness.js";
+
+// `setupFiles` runs inside the test workers, so the .env it loads never
+// reaches this file — globalSetup runs in the main process. Without this the
+// sweep read no credentials and returned silently on every local run, which is
+// how fixture users accumulated in the app while the suite reported success.
+// CI injects the variables directly, where this is a no-op.
+config({ quiet: true });
 
 let coverageDir: string | undefined;
 
@@ -73,9 +81,22 @@ async function sweep(): Promise<void> {
 
   const client = new StreamClient(apiKey, apiSecret, { timeout: 30_000 });
   const { users } = await client.queryUsers({
-    payload: { filter_conditions: { id: { $autocomplete: FIXTURE_PREFIX } }, limit: 100 },
+    // Deactivated users are excluded by default, so a suite that deactivates a
+    // fixture and dies before reactivating it would strand that user where no
+    // later sweep could ever see it.
+    payload: {
+      filter_conditions: { id: { $autocomplete: FIXTURE_PREFIX } },
+      limit: 100,
+      include_deactivated_users: true,
+    },
   });
-  const ids = users.map((user) => user.id).filter((id) => id.startsWith(`${FIXTURE_PREFIX}-`));
+  // Guests are the reason for the second clause: `users_create_guest` asks for
+  // `mcptest-guestuser-x` and Stream returns `guest-<uuid>-mcptest-guestuser-x`,
+  // so a prefix-only match queried them and then dropped them from the delete
+  // list on every run. They accumulated in the app for as long as this existed.
+  const ids = users
+    .map((user) => user.id)
+    .filter((id) => id.startsWith(`${FIXTURE_PREFIX}-`) || id.includes(`-${FIXTURE_PREFIX}-`));
   if (ids.length === 0) return;
 
   const { task_id } = await withRetry(() =>

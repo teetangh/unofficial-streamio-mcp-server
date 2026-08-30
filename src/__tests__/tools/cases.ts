@@ -71,6 +71,56 @@ export const userCases: ToolCase[] = [
     payload: { payload: { filter_conditions: { role: { $eq: "admin" } }, limit: 5 } },
   },
   {
+    // Stream rejects every operator on `deactivated_at`, so the only way to
+    // isolate deactivated users is to page by ascending id and filter locally.
+    // Keyset, not offset: Stream caps `offset` at 1,000.
+    tool: "chat_query_users",
+    args: { deactivated_only: true, limit: 20 },
+    path: "queryUsers",
+    payload: {
+      payload: {
+        filter_conditions: { id: { $gt: "" } },
+        sort: [{ field: "id", direction: 1 }],
+        limit: 100,
+        include_deactivated_users: true,
+      },
+    },
+    overrides: {
+      queryUsers: {
+        duration: "1ms",
+        users: [{ id: "alice", deactivated_at: new Date("2026-08-01T00:00:00Z") }, { id: "bob" }],
+      },
+    },
+    assert: (_call, result) => {
+      const value = result as {
+        users: { id: string }[];
+        scan: { scanned: number; pages: number; complete: boolean; next_id?: string };
+      };
+      if (value.users.length !== 1 || value.users[0].id !== "alice") {
+        throw new Error("scan kept a user that is not deactivated");
+      }
+      // A short page means the end of the app's users was reached.
+      if (!value.scan.complete || value.scan.scanned !== 2 || value.scan.pages !== 1) {
+        throw new Error("scan summary does not describe the pages actually read");
+      }
+      if (value.scan.next_id !== undefined) throw new Error("a complete scan has no cursor");
+    },
+  },
+  {
+    tool: "chat_query_users",
+    args: { deactivated_only: true, after_id: "mcptest-u9", limit: 20 },
+    path: "queryUsers",
+    payload: {
+      payload: {
+        filter_conditions: { id: { $gt: "mcptest-u9" } },
+        sort: [{ field: "id", direction: 1 }],
+        limit: 100,
+        include_deactivated_users: true,
+      },
+    },
+    overrides: { queryUsers: { duration: "1ms", users: [] } },
+  },
+  {
     tool: "users_update_partial",
     args: { users: [{ id: "alice", set: { name: "A" } }] },
     path: "updateUsersPartial",
@@ -164,6 +214,23 @@ export const channelCases: ToolCase[] = [
     },
   },
   {
+    // A plain read goes through Stream's GET endpoint, which 404s on an id
+    // that does not exist. The create-or-query endpoint would have created it
+    // — on a tool annotated readOnlyHint.
+    tool: "chat_get_channel",
+    args: { ...CHANNEL },
+    path: "apiClient.sendRequest",
+    payload: [
+      "GET",
+      "/api/v2/chat/channels/{type}/{id}",
+      { type: "messaging", id: "general" },
+      { payload: JSON.stringify({ state: true, messages_limit: 25, members_limit: 30 }) },
+    ],
+  },
+  {
+    // Paging falls through to create-or-query, because the GET endpoint
+    // accepts `messages_id_lt` and ignores it. The GET above still runs first,
+    // so an unknown id has already 404'd by this point.
     tool: "chat_get_channel",
     args: { ...CHANNEL, message_limit: 50, before_message_id: "m1" },
     path: "chat.getOrCreateChannel",

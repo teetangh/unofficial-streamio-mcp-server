@@ -181,6 +181,12 @@ suite("live: video", () => {
       user_ids: [host],
     });
     expect(Array.isArray(result.participants)).toBe(true);
+    // The call configuration around the participants is the bulk of the raw
+    // response and none of the tool's subject.
+    expect(result.call).toBeUndefined();
+    expect(result.call_cid).toBe(`default:${callId}`);
+    expect(result.member_count).toBeDefined();
+    expect(result._hint).toMatch(/connected/i);
   });
 
   it("rings the call members", async () => {
@@ -284,11 +290,35 @@ suite("live: video", () => {
     const result = await harness.callEither("video_get_call_report", call);
     // Without a finished session there is no report, but the path must resolve.
     expect(result.text).not.toMatch(SCHEMA_ERROR);
+    if (result.ok) {
+      const report = JSON.parse(result.text);
+      expect(report.participants).toBeDefined();
+      expect(report.digest).toBeUndefined();
+    } else {
+      // A missing report is not something a caller can create.
+      expect(result.text).not.toMatch(/Create it first/);
+    }
   });
 
   it("queries call stats", async () => {
     const result = await harness.call("video_query_call_stats", {
       filter_conditions: { call_cid: { $eq: `default:${callId}` } },
+    });
+    expect(result.reports ?? result.duration).toBeDefined();
+  });
+
+  it("accepts the time-range filter shape its description documents", async () => {
+    // Two operators on one field are rejected by Stream ("field expressions
+    // can only contain one operation"), which is why the description spells
+    // out the $and form.
+    const result = await harness.call("video_query_call_stats", {
+      filter_conditions: {
+        $and: [
+          { created_at: { $gt: "2026-06-01T00:00:00Z" } },
+          { created_at: { $lt: "2036-01-01T00:00:00Z" } },
+        ],
+      },
+      limit: 2,
     });
     expect(result.reports ?? result.duration).toBeDefined();
   });

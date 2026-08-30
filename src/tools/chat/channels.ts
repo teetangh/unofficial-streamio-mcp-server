@@ -1,4 +1,8 @@
-import type { QueryChannelsResponse } from "@stream-io/node-sdk";
+import type {
+  ChannelResponse,
+  ChannelStateResponse,
+  QueryChannelsResponse,
+} from "@stream-io/node-sdk";
 import { z } from "zod";
 import {
   channelMember,
@@ -11,9 +15,33 @@ import {
   sortParams,
 } from "../../schemas/common.js";
 import { ToolInputError } from "../../utils/errors.js";
-import { omit } from "../../utils/format.js";
-import { bounded } from "../../utils/format.js";
+import { bounded, pick, userRef } from "../../utils/format.js";
 import { defineTool, type AnyToolDef } from "../define.js";
+
+/**
+ * What a channel *listing* is for: identity, the fields `filter_conditions`
+ * and `sort` accept, and the counts. Everything else on a ChannelResponse is
+ * either boilerplate repeated on every row — `own_capabilities` is 33
+ * identical strings under a server-side key, `config` belongs to the channel
+ * type — or has a tool of its own.
+ */
+const CHANNEL_LIST_KEYS = [
+  "cid",
+  "type",
+  "id",
+  "created_at",
+  "updated_at",
+  "last_message_at",
+  "deleted_at",
+  "truncated_at",
+  "member_count",
+  "message_count",
+  "frozen",
+  "disabled",
+  "hidden",
+  "team",
+  "custom",
+] as const satisfies readonly (keyof ChannelResponse)[];
 
 const createChannel = defineTool({
   name: "chat_create_channel",
@@ -106,19 +134,36 @@ const queryChannels = defineTool({
       .optional()
       .describe("Query as this user — applies their permissions and populates read/unread state"),
   },
-  // Keeps a page readable: per-channel read state and full member objects
-  // dominate the raw payload.
+  // Stream caps this at 30 rows, so the whole page has to fit the byte budget.
+  // Spending it on boilerplate is what dropped rows: `own_capabilities` is 33
+  // identical strings on every row, and an expanded `created_by` is a whole
+  // user object per channel.
   compact: (raw: QueryChannelsResponse) => ({
     channels: (raw.channels ?? []).map((entry) => ({
-      ...(omit(entry.channel, ["config"]) as object),
+      ...pick(entry.channel, CHANNEL_LIST_KEYS),
+      created_by: userRef(entry.channel?.created_by),
+      // `member_count` is absent on some channel types; the returned page is
+      // then the only other source.
       member_count: entry.channel?.member_count ?? entry.members?.length,
-      members: entry.members?.slice(0, 10).map((member) => ({
-        user_id: member.user_id,
-        channel_role: member.channel_role,
-      })),
-      message_count: entry.messages?.length,
+      // Ids only. Roles are what chat_query_members is for, and a
+      // {user_id, channel_role} object per member costs ~90 bytes a row.
+      member_ids: entry.members?.slice(0, 5).map((member) => member.user_id),
+      // Only meaningful when the caller raised `message_limit` above its
+      // default of 0. It used to be reported as `message_count`, which is a
+      // different quantity: with the default limit it was always 0 even on a
+      // channel with messages, contradicting `last_message_at` in the same row.
+      messages_returned: entry.messages?.length || undefined,
+      messages: entry.messages?.length
+        ? entry.messages.slice(-3).map((message) => ({
+            id: message.id,
+            text: message.text,
+            created_at: message.created_at,
+            user: userRef(message.user),
+          }))
+        : undefined,
     })),
-    _hint: "Use chat_get_channel for one channel's messages and read state.",
+    _hint:
+      "Channel metadata only: `message_count` is the channel's own total (absent when Stream does not track it for that channel type), `messages_returned` counts the rows in this page. Up to 5 member ids each, and the 3 newest messages when `message_limit` is set. Use chat_query_members for member roles, chat_get_channel for one channel's history and read state, or verbose:true for the raw page.",
   }),
   handler: async (args, client) =>
     client.chat.queryChannels(
@@ -308,7 +353,7 @@ const getChannel = defineTool({
   title: "Get channel state and messages",
   toolset: "chat",
   description:
-    "Fetch a channel's state: its data, members, and most recent messages. This is the primary way to READ chat history. Page backwards through history with `before_message_id` (pass the oldest message id you already have).",
+    "Fetch a channel's state: its data, members, and most recent messages. This is the primary way to READ chat history. Page backwards through history with `before_message_id` (pass the oldest message id you already have). Strictly a read: an unknown channel id returns a 404 rather than creating the channel — use chat_create_channel for that.",
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -326,18 +371,55 @@ const getChannel = defineTool({
     member_limit: limit(100, 30),
   },
   compact: bounded,
-  handler: async (args, client) =>
-    client.chat.getOrCreateChannel({
+  /*
+   * Two endpoints, each with one flaw, so this tool uses both.
+   *
+   * GET /channels/{type}/{id} is a true read: it 404s on an id that does not
+   * exist. It takes its options as one JSON `payload` query param — the SDK's
+   * typed `chat.getChannel()` sends them as discrete query params instead and
+   * Stream answers 400 "Missing request payload", the same SDK bug as
+   * `chat.getPinnedMessages`, which is why the endpoint is called directly
+   * here. But it honours only `messages_limit`: `messages_id_lt` and
+   * `messages_id_around` are accepted and ignored (verified against the API).
+   *
+   * The create-or-query endpoint behind `getOrCreateChannel()` does honour
+   * message pagination — and CREATES the channel when the id does not exist,
+   * which a tool annotated `readOnlyHint: true` must never do. This one was
+   * being used to audit for exactly the phantom channels such a call mints.
+   *
+   * So: read through GET, which also proves the channel exists, and only when
+   * the caller asked to page re-fetch through the create-or-query endpoint,
+   * where creation is no longer possible. Do not collapse this into one call.
+   */
+  handler: async (args, client) => {
+    const messages = defined({
+      limit: args.message_limit ?? 25,
+      id_lt: args.before_message_id,
+      id_around: args.around_message_id,
+    });
+    const response = await client.apiClient.sendRequest<ChannelStateResponse>(
+      "GET",
+      "/api/v2/chat/channels/{type}/{id}",
+      { type: args.channel_type, id: args.channel_id },
+      {
+        payload: JSON.stringify({
+          state: true,
+          messages_limit: messages.limit,
+          members_limit: args.member_limit ?? 30,
+        }),
+      }
+    );
+    if (args.before_message_id === undefined && args.around_message_id === undefined) {
+      return { ...response.body, metadata: response.metadata };
+    }
+    return client.chat.getOrCreateChannel({
       type: args.channel_type,
       id: args.channel_id,
       state: true,
-      messages: defined({
-        limit: args.message_limit ?? 25,
-        id_lt: args.before_message_id,
-        id_around: args.around_message_id,
-      }),
+      messages,
       members: { limit: args.member_limit ?? 30 },
-    }),
+    });
+  },
 });
 
 const deleteChannel = defineTool({

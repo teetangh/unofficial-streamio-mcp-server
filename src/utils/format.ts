@@ -10,6 +10,12 @@ import { formatErrorMessage } from "./errors.js";
  *
  * Tools whose payload *is* one of these (e.g. `chat_get_channel_type`) opt out
  * with `compact: false`.
+ *
+ * NOTE: `grants` and `commands` are unrecoverable through any shrink-based
+ * path. A tool whose whole point is permission grants — `video_get_call_type`,
+ * `chat_get_channel_type` — must name them in an explicit projection or opt
+ * out entirely; falling through to `shrink` deletes exactly what the caller
+ * asked for.
  */
 const NOISE_KEYS = new Set([
   "config",
@@ -84,11 +90,11 @@ export function shrink(value: unknown, maxArrayItems: number = MAX_ARRAY_ITEMS):
   return out;
 }
 
-const render = (value: unknown): string => {
+const render = (value: unknown, indent: number): string => {
   if (typeof value === "string") return value;
   // JSON.stringify returns undefined for `undefined` and for a bare function,
   // which would make Buffer.byteLength throw and turn a success into an error.
-  return JSON.stringify(value, null, 2) ?? "null";
+  return JSON.stringify(value, null, indent) ?? "null";
 };
 
 const utf8 = (text: string): number => Buffer.byteLength(text, "utf8");
@@ -106,16 +112,32 @@ function largestArrayKey(value: Record<string, unknown>): string | undefined {
   return best;
 }
 
+function omissionHint(cap: number, key: string, total: number, keep: number): string {
+  return (
+    `Response exceeded ${cap} bytes even without indentation; ` +
+    `${total - keep} of ${total} \`${key}\` entries were dropped. ` +
+    `Lower the limit or narrow the filter.`
+  );
+}
+
 /**
- * Serialises a tool payload within the byte cap.
+ * Serialises a tool payload within the byte cap, shedding the cheapest thing
+ * first.
  *
- * An oversized payload sheds whole list entries first, so what comes back is
- * still valid JSON that a model can parse — a mid-string slice is worse than
- * useless. The hard slice remains only for payloads with no list to shed.
+ * Indentation goes before any data does: it is roughly a third of a nested
+ * payload and carries no information. Only then are list entries dropped, and
+ * the number kept is the largest prefix that fits — found by bisection rather
+ * than the repeated halving this replaces, which turned a 30-row page into 7
+ * and a 100-user page into 25. The hard slice remains only for payloads with
+ * no list to shed.
  */
 export function serialize(data: unknown): string {
   const cap = getMaxResponseBytes();
-  let text = render(data);
+
+  const pretty = render(data, 2);
+  if (utf8(pretty) <= cap) return pretty;
+
+  const text = render(data, 0);
   if (utf8(text) <= cap) return text;
 
   if (data !== null && typeof data === "object" && !Array.isArray(data)) {
@@ -123,22 +145,39 @@ export function serialize(data: unknown): string {
     const key = largestArrayKey(clone);
     if (key) {
       const items = clone[key] as unknown[];
-      let keep = items.length;
-      while (keep > 0) {
-        keep = Math.floor(keep / 2);
+      // Applies a candidate prefix and reports whether it fits. Output grows
+      // with the number of entries kept, so the largest fitting prefix can be
+      // bisected for; `keep = 0` is still a useful answer, because an envelope
+      // that parses beats a mid-string slice that does not.
+      const fits = (keep: number): boolean => {
         clone[key] = items.slice(0, keep);
         clone._omitted_items = items.length - keep;
-        clone._hint = `Response exceeded ${cap} bytes; ${items.length - keep} of ${items.length} \`${key}\` entries were dropped. Lower the limit or narrow the filter.`;
-        text = render(clone);
-        if (utf8(text) <= cap) return text;
+        clone._hint = omissionHint(cap, key, items.length, keep);
+        return utf8(render(clone, 0)) <= cap;
+      };
+
+      let low = 0;
+      let high = items.length - 1;
+      let best = -1;
+      while (low <= high) {
+        const middle = Math.floor((low + high) / 2);
+        if (fits(middle)) {
+          best = middle;
+          low = middle + 1;
+        } else {
+          high = middle - 1;
+        }
       }
+      // Re-applied rather than remembered: `fits` mutates `clone`, and the
+      // width of `_omitted_items` makes size very slightly non-monotone, so
+      // the winning slice is re-checked rather than trusted.
+      if (best >= 0 && fits(best)) return render(clone, 0);
     }
   }
 
   // Nothing sheddable — fall back to a slice and say so plainly. The notice is
   // budgeted for up front, so the returned text stays inside the cap rather
   // than exceeding it by the length of its own warning.
-  text = render(data);
   const bytes = utf8(text);
   const notice =
     `\n\n[TRUNCATED: response was ${bytes} bytes, capped at ${cap}. ` +
@@ -182,13 +221,67 @@ export function omit<T extends object>(
   return out;
 }
 
+/**
+ * Keeps only the named keys.
+ *
+ * Unlike `omit`, this is an allow-list, which is what a row projection needs:
+ * `omit` can only drop keys from an object's *children*, so a per-row
+ * `own_capabilities` survives it. The result also stays typed — a key Stream
+ * renames fails the build instead of quietly vanishing from the response, and
+ * the caller can spread the result without a cast.
+ *
+ * Values are returned as they are. Anything nested and unbounded is projected
+ * explicitly by the tool that owns it.
+ */
+export function pick<T extends object, K extends keyof T>(
+  value: T | null | undefined,
+  keys: readonly K[]
+): Pick<T, K> | undefined {
+  if (!value) return undefined;
+  const out: Partial<Pick<T, K>> = {};
+  for (const key of keys) {
+    if (value[key] !== undefined) out[key] = value[key];
+  }
+  return out as Pick<T, K>;
+}
+
+/**
+ * A user reduced to what a listing needs. A full `UserResponse` is a few
+ * hundred bytes of role, timestamps, teams and mute state repeated on every
+ * row of a page.
+ *
+ * Typed structurally, so this module stays free of SDK imports and every
+ * Stream user shape fits.
+ */
+export function userRef(
+  user: { id: string; name?: string } | null | undefined
+): { id: string; name?: string } | undefined {
+  if (!user) return undefined;
+  return user.name === undefined ? { id: user.id } : { id: user.id, name: user.name };
+}
+
+/**
+ * Collapses a keyed map whose values are boilerplate. The keys are listed
+ * while there are few enough to read — an ingress encoder ladder is keyed by
+ * resolution, which is the useful part — and dropped past that, where the key
+ * list is itself the bulk: a composite layout's `options` map has 55 entries.
+ */
+export function summarizeRecord(
+  value: Record<string, unknown> | undefined,
+  maxKeys = 8
+): { count: number; keys?: string[] } | undefined {
+  if (!value) return undefined;
+  const keys = Object.keys(value);
+  return keys.length > maxKeys ? { count: keys.length } : { count: keys.length, keys };
+}
+
 export function toolResult(data: unknown): CallToolResult {
   return { content: [{ type: "text", text: serialize(data) }] };
 }
 
-export function toolError(error: unknown): CallToolResult {
+export function toolError(error: unknown, notFoundHint?: string): CallToolResult {
   return {
-    content: [{ type: "text", text: formatErrorMessage(error) }],
+    content: [{ type: "text", text: formatErrorMessage(error, notFoundHint) }],
     isError: true,
   };
 }
