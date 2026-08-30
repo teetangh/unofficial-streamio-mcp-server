@@ -75,7 +75,7 @@ const unbanUser = defineTool({
   title: "Unban user",
   toolset: "moderation",
   description:
-    "Lift a ban. Pass the same `channel_cid` that was used to ban, or omit it to lift an app-wide ban.",
+    "Lift a ban. Pass the same `channel_cid` that was used to ban, or omit it to lift an app-wide ban. `banned_by_id` selects which ban to lift when a user was banned by several moderators; `unbanned_by_id` records who is lifting it.",
   annotations: {
     readOnlyHint: false,
     destructiveHint: false,
@@ -90,6 +90,12 @@ const unbanUser = defineTool({
       .optional()
       .describe("Channel the ban was applied to. Omit for an app-wide unban."),
     unbanned_by_id: z.string().optional().describe("Moderator performing the unban"),
+    banned_by_id: z
+      .string()
+      .optional()
+      .describe(
+        "Moderator who created the ban being lifted. Only needed to disambiguate between bans by different moderators."
+      ),
   },
   handler: async (args, client) =>
     client.moderation.unban(
@@ -97,7 +103,9 @@ const unbanUser = defineTool({
         target_user_id: args.target_user_id,
         channel_cid: args.channel_cid,
         unbanned_by_id: args.unbanned_by_id,
-        created_by: args.unbanned_by_id,
+        // The `created_by` query param identifies who created the *ban*, not
+        // who is lifting it — they are different people.
+        created_by: args.banned_by_id,
       })
     ),
 });
@@ -318,10 +326,10 @@ const submitAction = defineTool({
   handler: async (args, client) =>
     client.moderation.submitAction(
       defined({
+        ...(args.payload ?? {}),
         item_id: args.item_id,
         action_type: args.action_type,
         user_id: args.user_id,
-        ...(args.payload ?? {}),
       })
     ),
 });

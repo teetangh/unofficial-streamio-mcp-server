@@ -643,7 +643,7 @@ Deprecated aliases: `chat_ban_user`
 
 ### `moderation_unban_user` — idempotent
 
-Lift a ban. Pass the same `channel_cid` that was used to ban, or omit it to lift an app-wide ban.
+Lift a ban. Pass the same `channel_cid` that was used to ban, or omit it to lift an app-wide ban. `banned_by_id` selects which ban to lift when a user was banned by several moderators; `unbanned_by_id` records who is lifting it.
 
 Deprecated aliases: `chat_unban_user`
 
@@ -652,6 +652,7 @@ Deprecated aliases: `chat_unban_user`
 | `target_user_id` | string | **yes** | User ID to unban |
 | `channel_cid` | string | no | Channel the ban was applied to. Omit for an app-wide unban. |
 | `unbanned_by_id` | string | no | Moderator performing the unban |
+| `banned_by_id` | string | no | Moderator who created the ban being lifted. Only needed to disambiguate between bans by different moderators. |
 
 ### `moderation_query_banned_users` — read-only, idempotent
 
