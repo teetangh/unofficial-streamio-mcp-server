@@ -49,6 +49,11 @@ describe("formatErrorMessage", () => {
     expect(text).not.toContain("HTTP");
   });
 
+  it("does not treat a local error carrying metadata: null as a Stream error", () => {
+    const local = Object.assign(new Error("socket hang up"), { metadata: null });
+    expect(formatErrorMessage(local)).toBe("socket hang up");
+  });
+
   it("labels tool input errors distinctly", () => {
     expect(formatErrorMessage(new ToolInputError("need 2 members"))).toBe(
       "Invalid input: need 2 members"

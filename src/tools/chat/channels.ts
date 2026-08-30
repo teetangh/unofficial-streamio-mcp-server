@@ -11,6 +11,7 @@ import {
 } from "../../schemas/common.js";
 import { ToolInputError } from "../../utils/errors.js";
 import { omit } from "../../utils/format.js";
+import { bounded } from "../../utils/format.js";
 import { defineTool, type ToolDef } from "../define.js";
 
 const createChannel = defineTool({
@@ -102,6 +103,7 @@ const getChannel = defineTool({
     around_message_id: z.string().optional().describe("Return messages centred on this message ID"),
     member_limit: limit(100, 30),
   },
+  compact: bounded,
   handler: async (args, client) =>
     client.chat.getOrCreateChannel({
       type: args.channel_type,
@@ -226,23 +228,26 @@ const updateChannel = defineTool({
           : defined({ user_id: entry.user_id, channel_role: entry.role })
       );
 
-    const payload = defined({
+    const mutations = defined({
       add_members: toMembers(args.add_members),
       remove_members: args.remove_members,
       add_moderators: args.add_moderators,
       demote_moderators: args.demote_moderators,
       assign_roles: toMembers(args.assign_roles),
       invites: toMembers(args.invites),
-      user_id: args.user_id,
       hide_history: args.hide_history,
       cooldown: args.cooldown,
     });
 
-    if (Object.keys(payload).length === 0) {
+    // `user_id` is attribution only, so it must not satisfy this guard.
+    if (Object.keys(mutations).length === 0) {
       throw new ToolInputError(
-        "Nothing to do — pass at least one of add_members, remove_members, add_moderators, demote_moderators, assign_roles, invites, hide_history or cooldown."
+        "Nothing to do — pass at least one of add_members, remove_members, add_moderators, demote_moderators, assign_roles, invites, hide_history or cooldown. " +
+          "To change channel data such as the name or image, use chat_update_channel_data instead."
       );
     }
+
+    const payload = { ...mutations, ...defined({ user_id: args.user_id }) };
 
     return client.chat.updateChannel({
       type: args.channel_type,
@@ -313,7 +318,6 @@ const updateChannelData = defineTool({
     idempotentHint: true,
     openWorldHint: true,
   },
-  aliases: ["chat_update_channel_partial"],
   inputSchema: {
     ...channelRef,
     set: z
@@ -423,6 +427,7 @@ const queryMembers = defineTool({
     offset,
     user_id: z.string().optional().describe("Query as this user"),
   },
+  compact: bounded,
   handler: async (args, client) =>
     client.chat.queryMembers({
       payload: defined({

@@ -33,11 +33,11 @@ export class ToolInputError extends Error {
 }
 
 function isStreamError(error: unknown): error is StreamErrorLike {
-  return (
-    error instanceof Error &&
-    "metadata" in error &&
-    typeof (error as StreamErrorLike).metadata === "object"
-  );
+  if (!(error instanceof Error) || !("metadata" in error)) return false;
+  const { metadata } = error as StreamErrorLike;
+  // typeof null === "object", so a local error carrying `metadata: null`
+  // would otherwise be reported as a Stream API failure.
+  return metadata !== null && typeof metadata === "object";
 }
 
 /**

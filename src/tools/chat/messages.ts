@@ -11,6 +11,7 @@ import {
   sortParams,
 } from "../../schemas/common.js";
 import { ToolInputError } from "../../utils/errors.js";
+import { bounded } from "../../utils/format.js";
 import { defineTool, type ToolDef } from "../define.js";
 
 const attachment = z.object({
@@ -126,6 +127,7 @@ const getManyMessages = defineTool({
     ...channelRef,
     message_ids: z.array(z.string().min(1)).min(1).max(100).describe("Message IDs to fetch"),
   },
+  compact: bounded,
   handler: async (args, client) =>
     client.chat.getManyMessages({
       type: args.channel_type,
@@ -160,6 +162,7 @@ const searchMessages = defineTool({
     offset,
     next: z.string().optional().describe("Cursor from a previous response's `next` field"),
   },
+  compact: bounded,
   handler: async (args, client) => {
     if (args.query === undefined && args.message_filter_conditions === undefined) {
       throw new ToolInputError("Pass either `query` or `message_filter_conditions`.");
@@ -306,6 +309,7 @@ const getReplies = defineTool({
     before_message_id: z.string().optional().describe("Return replies older than this message ID"),
     sort: sortParams,
   },
+  compact: bounded,
   handler: async (args, client) =>
     client.chat.getReplies(
       defined({
@@ -333,6 +337,7 @@ const getPinnedMessages = defineTool({
     limit: limit(100, 25),
     user_id: z.string().optional().describe("Query as this user"),
   },
+  compact: bounded,
   handler: async (args, client) =>
     client.chat.getPinnedMessages(
       defined({
@@ -437,6 +442,7 @@ const getReactions = defineTool({
     limit: limit(300, 50),
     offset,
   },
+  compact: bounded,
   handler: async (args, client) =>
     client.chat.getReactions(
       defined({ id: args.message_id, limit: args.limit ?? 50, offset: args.offset })
@@ -532,6 +538,7 @@ const queryThreads = defineTool({
     reply_limit: limit(10, 2),
     next: z.string().optional().describe("Cursor from a previous response's `next` field"),
   },
+  compact: bounded,
   handler: async (args, client) =>
     client.chat.queryThreads(
       defined({
@@ -539,7 +546,7 @@ const queryThreads = defineTool({
         filter: args.filter,
         sort: args.sort,
         limit: args.limit ?? 10,
-        reply_limit: args.reply_limit,
+        reply_limit: args.reply_limit ?? 2,
         next: args.next,
       })
     ),
@@ -565,8 +572,8 @@ const getThread = defineTool({
     client.chat.getThread(
       defined({
         message_id: args.parent_message_id,
-        reply_limit: args.reply_limit,
-        participant_limit: args.participant_limit,
+        reply_limit: args.reply_limit ?? 10,
+        participant_limit: args.participant_limit ?? 10,
       })
     ),
 });

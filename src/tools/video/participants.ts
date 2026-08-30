@@ -10,6 +10,7 @@ import {
   sortParams,
 } from "../../schemas/common.js";
 import { ToolInputError } from "../../utils/errors.js";
+import { bounded } from "../../utils/format.js";
 import { defineTool, type ToolDef } from "../define.js";
 
 const updateCallMembers = defineTool({
@@ -68,6 +69,7 @@ const queryCallMembers = defineTool({
     next: nextCursor,
     prev: prevCursor,
   },
+  compact: bounded,
   handler: async (args, client) =>
     client.video.queryCallMembers(
       defined({
@@ -106,6 +108,7 @@ const queryCallParticipants = defineTool({
       .describe("Restrict to participants publishing these track types"),
     limit: limit(100, 25),
   },
+  compact: bounded,
   handler: async (args, client) => {
     if (args.user_ids === undefined && args.published_tracks === undefined) {
       throw new ToolInputError(

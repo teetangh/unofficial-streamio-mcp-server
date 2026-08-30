@@ -26,12 +26,14 @@ export const DEFAULT_MAX_RESPONSE_BYTES = 30_000;
 function parsePositiveInt(raw: string | undefined, fallback: number): number {
   if (raw === undefined || raw.trim() === "") return fallback;
   const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
+  // Integer-only: Math.floor on a fraction would turn 0.5 into a 0ms timeout
+  // or a 0-byte response cap, both of which fail in confusing ways.
+  if (!Number.isInteger(parsed) || parsed <= 0) {
     throw new Error(
-      `Invalid numeric environment value ${JSON.stringify(raw)} — expected a positive number.`
+      `Invalid numeric environment value ${JSON.stringify(raw)} — expected a positive integer.`
     );
   }
-  return Math.floor(parsed);
+  return parsed;
 }
 
 export function getTimeoutMs(): number {

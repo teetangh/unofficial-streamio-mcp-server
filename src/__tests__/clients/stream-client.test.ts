@@ -58,6 +58,14 @@ describe("getClient", () => {
     expect(client.config?.basePath).toBe("https://example.invalid");
   });
 
+  it("rejects a fractional timeout rather than flooring it to zero", () => {
+    process.env.STREAM_API_KEY = "k";
+    process.env.STREAM_API_SECRET = "s";
+    process.env.STREAM_TIMEOUT_MS = "0.5";
+    // Flooring would produce a 0ms timeout that aborts every request.
+    expect(() => getClient()).toThrow(/positive integer/);
+  });
+
   it("rejects a non-numeric timeout", () => {
     process.env.STREAM_API_KEY = "k";
     process.env.STREAM_API_SECRET = "s";

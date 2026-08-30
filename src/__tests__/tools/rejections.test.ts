@@ -14,6 +14,8 @@ const REJECTIONS: [string, Record<string, unknown>, RegExp][] = [
     /at least 2 members/,
   ],
   ["chat_update_channel", { ...CHANNEL }, /Nothing to do/],
+  // `user_id` is attribution only and must not satisfy the guard.
+  ["chat_update_channel", { ...CHANNEL, user_id: "alice" }, /Nothing to do/],
   ["chat_update_channel_data", { ...CHANNEL }, /`set` or `unset`/],
   ["chat_update_member", { ...CHANNEL, user_id: "bob" }, /`set` or `unset`/],
   ["chat_update_message_partial", { message_id: "m1" }, /`set` or `unset`/],
@@ -44,6 +46,8 @@ const REJECTIONS: [string, Record<string, unknown>, RegExp][] = [
   ["video_update_call_type", { name: "webinar" }, /Nothing to update/],
   ["video_query_call_participants", { ...CALL }, /`user_ids` and\/or `published_tracks`/],
   ["moderation_update_blocklist", { name: "custom" }, /Nothing to update/],
+  // `team` scopes the target blocklist; it is not itself a change.
+  ["moderation_update_blocklist", { name: "custom", team: "eng" }, /Nothing to update/],
 ];
 
 describe("tool input rejections", () => {

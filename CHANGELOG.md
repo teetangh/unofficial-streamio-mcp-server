@@ -25,7 +25,7 @@ Full rewrite of the tool layer, plus coverage of the rest of Stream's server-sid
 - Cursor pagination (`next` / `prev`) on every paginated tool.
 - `STREAM_MCP_TOOLSETS` and `STREAM_MCP_READ_ONLY` to control the registered surface.
 - Tool `title` and `annotations` (`readOnlyHint`, `destructiveHint`, `idempotentHint`) so clients can distinguish a query from a hard delete.
-- Response compaction with a `verbose` escape and a byte cap.
+- Response compaction with a `verbose` escape and a byte cap. Arrays are trimmed from the middle so the newest entries always survive, and tools whose list length the caller already bounded with `limit` are exempt from trimming entirely.
 - eslint, prettier, a generated tool reference, and an stdio smoke test in CI.
 
 ### Changed (breaking)
@@ -33,10 +33,9 @@ Full rewrite of the tool layer, plus coverage of the rest of Stream's server-sid
 - `chat_ban_user` → `moderation_ban_user`
 - `chat_unban_user` → `moderation_unban_user`
 - `chat_flag_message` → `moderation_flag_message`
-- `chat_update_channel_partial` → `chat_update_channel_data`
-- `chat_update_channel` now manages members and roles only; channel data moved to `chat_update_channel_data`.
+- `chat_update_channel` now manages members and roles only. Partial data updates (`set` / `unset`) moved to **`chat_update_channel_data`**.
 
-The old names keep working as deprecated aliases and will be removed in 0.3.0. `chat_upsert_users`, `chat_query_users` and `chat_create_token` keep their names and gain `users_*` / `auth_*` aliases.
+`chat_update_channel` is the one rename with no compatibility shim: the name still exists but does something else, so a 0.1.0 call passing `set`/`unset` fails with an error naming `chat_update_channel_data` rather than silently doing nothing. Every other old name keeps working as a deprecated alias and will be removed in 0.3.0. `chat_upsert_users`, `chat_query_users` and `chat_create_token` keep their names and gain `users_*` / `auth_*` aliases.
 
 - Minimum Node is now **22.12** (`@stream-io/node-sdk` 0.8). Dependencies moved to `@stream-io/node-sdk` ^0.8, `@modelcontextprotocol/sdk` ^1.30, `zod` ^4.
 

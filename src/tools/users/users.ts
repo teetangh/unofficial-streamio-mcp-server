@@ -8,6 +8,7 @@ import {
   sortParams,
 } from "../../schemas/common.js";
 import { ToolInputError } from "../../utils/errors.js";
+import { bounded } from "../../utils/format.js";
 import { defineTool, type ToolDef } from "../define.js";
 
 const userSchema = z.object({
@@ -70,6 +71,7 @@ const queryUsers = defineTool({
     presence: z.boolean().optional().describe("Include online/presence state"),
     include_deactivated_users: z.boolean().optional().describe("Include deactivated users"),
   },
+  compact: bounded,
   handler: async (args, client) =>
     client.queryUsers({
       payload: defined({

@@ -421,13 +421,14 @@ export const messageCases: ToolCase[] = [
     tool: "chat_query_threads",
     args: { user_id: "alice" },
     path: "chat.queryThreads",
-    payload: { user_id: "alice", limit: 10 },
+    payload: { user_id: "alice", limit: 10, reply_limit: 2 },
   },
   {
     tool: "chat_get_thread",
     args: { parent_message_id: "m1" },
     path: "chat.getThread",
-    payload: { message_id: "m1" },
+    // Documented defaults must be sent, not left to Stream's own (2 replies).
+    payload: { message_id: "m1", reply_limit: 10, participant_limit: 10 },
   },
 ];
 
@@ -610,7 +611,7 @@ export const callCases: ToolCase[] = [
     tool: "video_get_call",
     args: { ...CALL },
     path: "video.getCall",
-    payload: { type: "default", id: "standup" },
+    payload: { type: "default", id: "standup", members_limit: 25 },
   },
   {
     tool: "video_update_call",

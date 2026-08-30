@@ -8,6 +8,7 @@ import {
   prevCursor,
   sortParams,
 } from "../../schemas/common.js";
+import { bounded } from "../../utils/format.js";
 import { defineTool, type ToolDef } from "../define.js";
 
 /** Stream's moderation entity types, as used by flag/check/review. */
@@ -127,6 +128,7 @@ const queryBannedUsers = defineTool({
     sort: sortParams,
     limit: limit(100, 25),
   },
+  compact: bounded,
   handler: async (args, client) =>
     client.queryBannedUsers({
       payload: defined({
@@ -236,6 +238,7 @@ const queryFlags = defineTool({
     next: nextCursor,
     prev: prevCursor,
   },
+  compact: bounded,
   handler: async (args, client) =>
     client.moderation.queryModerationFlags(
       defined({
@@ -268,6 +271,7 @@ const queryReviewQueue = defineTool({
     prev: prevCursor,
     stats_only: z.boolean().optional().describe("Return only aggregate counts, not the items"),
   },
+  compact: bounded,
   handler: async (args, client) =>
     client.moderation.queryReviewQueue(
       defined({
@@ -388,6 +392,7 @@ const queryLogs = defineTool({
     next: nextCursor,
     prev: prevCursor,
   },
+  compact: bounded,
   handler: async (args, client) =>
     client.moderation.queryModerationLogs(
       defined({

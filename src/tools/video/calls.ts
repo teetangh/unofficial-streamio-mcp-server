@@ -93,7 +93,11 @@ const getCall = defineTool({
   },
   handler: async (args, client) =>
     client.video.getCall(
-      defined({ type: args.call_type, id: args.call_id, members_limit: args.members_limit })
+      defined({
+        type: args.call_type,
+        id: args.call_id,
+        members_limit: args.members_limit ?? 25,
+      })
     ),
 });
 

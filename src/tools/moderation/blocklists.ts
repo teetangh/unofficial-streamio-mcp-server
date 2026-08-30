@@ -102,17 +102,21 @@ const updateBlockList = defineTool({
     team: z.string().optional().describe("Team the blocklist belongs to"),
   },
   handler: async (args, client) => {
-    const payload = defined({
+    const mutations = defined({
       words: args.words,
       is_substring_matching_enabled: args.is_substring_matching_enabled,
       is_plural_check_enabled: args.is_plural_check_enabled,
       is_leet_check_enabled: args.is_leet_check_enabled,
-      team: args.team,
     });
-    if (Object.keys(payload).length === 0) {
+    // `team` scopes which blocklist is addressed; it is not itself a change.
+    if (Object.keys(mutations).length === 0) {
       throw new ToolInputError("Nothing to update — pass `words` or at least one matching option.");
     }
-    return client.updateBlockList({ name: args.name, ...payload });
+    return client.updateBlockList({
+      name: args.name,
+      ...mutations,
+      ...defined({ team: args.team }),
+    });
   },
 });
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { serialize, shrink, toolError, toolResult } from "../../utils/format.js";
+import { bounded, serialize, shrink, toolError, toolResult } from "../../utils/format.js";
 
 afterEach(() => {
   delete process.env.STREAM_MCP_MAX_RESPONSE_BYTES;
@@ -11,13 +11,28 @@ describe("shrink", () => {
     expect(out).toEqual({ id: "c1" });
   });
 
-  it("caps long arrays and reports the omission", () => {
+  it("caps long arrays from the middle, keeping both ends", () => {
     const out = shrink({ items: Array.from({ length: 25 }, (_, i) => i) }) as {
       items: unknown[];
     };
 
-    expect(out.items).toHaveLength(21);
-    expect(out.items[20]).toMatchObject({ _omitted_items: 5 });
+    // Stream returns messages oldest-first, so dropping the tail would hide
+    // the newest entries — exactly what a caller reading history wants.
+    expect(out.items[0]).toBe(0);
+    expect(out.items.at(-1)).toBe(24);
+    expect(out.items).toContainEqual(expect.objectContaining({ _omitted_items: 5 }));
+  });
+
+  it("keeps every item when the caller already bounded the list", () => {
+    const items = Array.from({ length: 120 }, (_, i) => i);
+    const out = bounded({ items }) as { items: unknown[] };
+
+    expect(out.items).toHaveLength(120);
+    expect(out.items.at(-1)).toBe(119);
+  });
+
+  it("still drops noisy keys under bounded compaction", () => {
+    expect(bounded({ id: "c1", config: { a: 1 } })).toEqual({ id: "c1" });
   });
 
   it("leaves short arrays untouched", () => {
@@ -59,6 +74,16 @@ describe("serialize", () => {
 
     expect(text).toContain("[TRUNCATED:");
     expect(text).toContain("Narrow the filter");
+  });
+
+  it("measures the cap in UTF-8 bytes, not UTF-16 code units", () => {
+    process.env.STREAM_MCP_MAX_RESPONSE_BYTES = "200";
+    // 150 CJK characters are 450 UTF-8 bytes but only 150 `.length` units,
+    // so a length-based check would wave this through.
+    const text = serialize({ blob: "。".repeat(150) });
+
+    expect(text).toContain("[TRUNCATED:");
+    expect(Buffer.byteLength(text.split("\n\n[TRUNCATED:")[0], "utf8")).toBeLessThanOrEqual(200);
   });
 });
 

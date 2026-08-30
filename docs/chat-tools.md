@@ -90,8 +90,6 @@ Remove members from a channel. Convenience wrapper over chat_update_channel.
 
 Partially update a channel's data. `set` adds or overwrites fields (e.g. {name: 'New Name', image: 'https://…'}), `unset` removes them. Only the listed fields change.
 
-Deprecated aliases: `chat_update_channel_partial`
-
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `channel_type` | string | **yes** | Channel type (e.g. 'messaging', 'team', 'livestream') |
