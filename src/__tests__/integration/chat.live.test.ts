@@ -370,8 +370,24 @@ suite("live: chat", () => {
   });
 
   it("truncates the channel", async () => {
-    await harness.call("chat_truncate_channel", { ...channel, user_id: alice });
+    // `system_message` needs an author; Stream 400s without one, and its error
+    // says only "either user or user_id must be provided".
+    const missingAuthor = await harness.callExpectingError("chat_truncate_channel", {
+      ...channel,
+      system_message: "History cleared",
+    });
+    expect(missingAuthor).toMatch(/`system_message` is posted by a user/);
+
+    await harness.call("chat_truncate_channel", {
+      ...channel,
+      user_id: alice,
+      system_message: "History cleared",
+    });
     const after = await harness.call("chat_get_channel", channel);
-    expect(after.messages).toHaveLength(0);
+    // Everything is gone except the system message the truncation posted,
+    // which is also the proof that `user_id` reached Stream as its author.
+    expect(after.messages).toHaveLength(1);
+    expect(after.messages[0].type).toBe("system");
+    expect(after.messages[0].text).toBe("History cleared");
   });
 });

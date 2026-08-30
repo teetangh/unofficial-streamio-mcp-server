@@ -6,6 +6,27 @@ const suite = hasCredentials ? describe : describe.skip;
 /** Brief pause for Stream's type registry to converge after a write. */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 1500));
 
+/**
+ * Reads until a write is visible.
+ *
+ * Channel and call type writes are not immediately consistent, and the write's
+ * own response can echo pre-update values — a fixed sleep was still flaking, so
+ * convergence is asserted against a read instead of guessed at.
+ */
+async function eventually<T>(
+  read: () => Promise<T>,
+  done: (value: T) => boolean,
+  label: string
+): Promise<T> {
+  let last: T | undefined;
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    last = await read();
+    if (done(last)) return last;
+    await settle();
+  }
+  throw new Error(`${label} never converged: ${JSON.stringify(last).slice(0, 300)}`);
+}
+
 suite("live: channel types, call types and app settings", () => {
   const harness = new LiveHarness();
   const channelTypeName = fixtureId("chtype").replace(/-/g, "");
@@ -37,13 +58,18 @@ suite("live: channel types, call types and app settings", () => {
     // can return the pre-update values and fail intermittently.
     await settle();
 
-    const updated = await harness.call("chat_update_channel_type", {
+    await harness.call("chat_update_channel_type", {
       name: channelTypeName,
       automod: "disabled",
       automod_behavior: "flag",
       max_message_length: 2000,
       settings: { typing_events: false },
     });
+    const updated = await eventually(
+      () => harness.call("chat_get_channel_type", { name: channelTypeName }),
+      (type) => type.max_message_length === 2000 && type.typing_events === false,
+      "channel type update"
+    );
     expect(updated.max_message_length).toBe(2000);
     expect(updated.typing_events).toBe(false);
 
@@ -67,10 +93,15 @@ suite("live: channel types, call types and app settings", () => {
 
     await settle();
 
-    const updated = await harness.call("video_update_call_type", {
+    await harness.call("video_update_call_type", {
       name: callTypeName,
       settings: { backstage: { enabled: true } },
     });
+    const updated = await eventually(
+      () => harness.call("video_get_call_type", { name: callTypeName }),
+      (type) => type.settings?.backstage?.enabled === true,
+      "call type update"
+    );
     expect(updated.settings.backstage.enabled).toBe(true);
     // Grants survive the projection on write responses too — a shrink-based
     // path would silently drop them, since `grants` is a NOISE_KEY.

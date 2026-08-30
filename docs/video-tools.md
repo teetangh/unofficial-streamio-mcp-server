@@ -78,7 +78,7 @@ Delete a call. Soft delete by default. `hard: true` permanently removes the call
 
 ### `video_go_live` — idempotent
 
-Take a call out of backstage and make it live for viewers. Can start recording, HLS broadcasting, transcription and closed captions in the same call.
+Take a call out of backstage and make it live for viewers. Can start recording, HLS broadcasting, transcription and closed captions in the same call. Backstage must be enabled first, on the call type or per call via video_update_call `settings_override: {backstage: {enabled: true}}` — otherwise Stream rejects this with "backstage is not enabled for call types <type>" (it is off on the built-in `default` type).
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -93,7 +93,7 @@ Take a call out of backstage and make it live for viewers. Can start recording, 
 
 ### `video_stop_live` — **destructive**, idempotent
 
-Put a live call back into backstage. By default this also stops recording, HLS, transcription and RTMP broadcasts — pass the matching `continue_*` flag to keep one running.
+Put a live call back into backstage. By default this also stops recording, HLS, transcription and RTMP broadcasts — pass the matching `continue_*` flag to keep one running. Needs backstage enabled on the call or its type, same as video_go_live.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |

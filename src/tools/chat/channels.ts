@@ -454,7 +454,7 @@ const truncateChannel = defineTool({
   title: "Truncate channel",
   toolset: "chat",
   description:
-    "Remove all messages from a channel while keeping the channel and its members. Optionally post a system message explaining the truncation.",
+    "Remove all messages from a channel while keeping the channel and its members. Optionally post a system message explaining the truncation — that message needs an author, so `user_id` is required with it. `truncated_at` must be later than any previous truncation of the same channel.",
   annotations: {
     readOnlyHint: false,
     destructiveHint: true,
@@ -472,10 +472,21 @@ const truncateChannel = defineTool({
       .datetime({ offset: true })
       .optional()
       .describe("ISO-8601 timestamp — only truncate messages older than this"),
-    system_message: z.string().optional().describe("System message to post after truncating"),
+    system_message: z
+      .string()
+      .optional()
+      .describe("System message to post after truncating. Requires `user_id` — it is its author."),
   },
-  handler: async (args, client) =>
-    client.chat.truncateChannel({
+  handler: async (args, client) => {
+    // Stream answers "either user or user_id must be provided when using
+    // server side auth" — the system message has to have an author, and the
+    // request carries no acting user of its own.
+    if (args.system_message !== undefined && args.user_id === undefined) {
+      throw new ToolInputError(
+        "`system_message` is posted by a user, so `user_id` is required alongside it."
+      );
+    }
+    return client.chat.truncateChannel({
       type: args.channel_type,
       id: args.channel_id,
       ...defined({
@@ -487,7 +498,8 @@ const truncateChannel = defineTool({
             ? defined({ text: args.system_message, type: "system" as const, user_id: args.user_id })
             : undefined,
       }),
-    }),
+    });
+  },
 });
 
 const queryMembers = defineTool({

@@ -17,6 +17,13 @@ const REJECTIONS: [string, Record<string, unknown>, RegExp][] = [
   // `user_id` is attribution only and must not satisfy the guard.
   ["chat_update_channel", { ...CHANNEL, user_id: "alice" }, /Nothing to do/],
   ["chat_update_channel_data", { ...CHANNEL }, /`set` or `unset`/],
+  // Stream rejects a system message with no acting user, and its error names
+  // neither the field nor why.
+  [
+    "chat_truncate_channel",
+    { ...CHANNEL, system_message: "cleared" },
+    /`system_message` is posted by a user/,
+  ],
   // A deactivated-user scan pages by id, so offset and sort cannot apply.
   ["chat_query_users", { deactivated_only: true, offset: 10 }, /pages by ascending user id/],
   ["chat_query_users", { deactivated_only: true, sort: [{ field: "id" }] }, /ascending user id/],

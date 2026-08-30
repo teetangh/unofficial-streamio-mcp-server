@@ -110,7 +110,7 @@ Delete a channel. Soft delete by default (recoverable, id stays taken). `hard_de
 
 ### `chat_truncate_channel` — **destructive**, idempotent
 
-Remove all messages from a channel while keeping the channel and its members. Optionally post a system message explaining the truncation.
+Remove all messages from a channel while keeping the channel and its members. Optionally post a system message explaining the truncation — that message needs an author, so `user_id` is required with it. `truncated_at` must be later than any previous truncation of the same channel.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -119,7 +119,7 @@ Remove all messages from a channel while keeping the channel and its members. Op
 | `user_id` | string | no | Acting user ID |
 | `hard_delete` | boolean | no | Permanently remove messages rather than soft-deleting |
 | `truncated_at` | string | no | ISO-8601 timestamp — only truncate messages older than this |
-| `system_message` | string | no | System message to post after truncating |
+| `system_message` | string | no | System message to post after truncating. Requires `user_id` — it is its author. |
 
 ### `chat_query_members` — read-only, idempotent
 
