@@ -59,7 +59,11 @@ export interface ToolDef<S extends z.ZodRawShape = z.ZodRawShape, R = unknown> {
    * stats are derived from call activity.
    */
   notFoundHint?: string;
-  /** Deprecated names kept working for one minor release. */
+  /**
+   * Deprecated names kept working for one more minor release. The removal
+   * version is stated in the notice `registerTool` prepends — move both
+   * together, and only in the release that actually removes them.
+   */
   aliases?: string[];
 }
 
@@ -140,7 +144,7 @@ export function registerTool<S extends z.ZodRawShape, R>(
         if (deprecatedAs) {
           result.content.unshift({
             type: "text",
-            text: `Note: "${deprecatedAs}" is deprecated and will be removed in 0.3.0. Use "${def.name}".`,
+            text: `Note: "${deprecatedAs}" is deprecated and will be removed in 0.4.0. Use "${def.name}".`,
           });
         }
         return result;
