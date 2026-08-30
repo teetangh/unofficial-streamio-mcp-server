@@ -5,6 +5,13 @@
 # files that carry no review value are filtered out here rather than eating
 # into that budget.
 reviews:
+  auto_review:
+    # Auto-review defaults to the default branch only, which silently skips
+    # stacked pull requests — a PR based on another feature branch would merge
+    # with no review at all. `.*` covers any base branch.
+    base_branches:
+      - ".*"
+
   path_filters:
     # Machine-generated.
     - "!package-lock.json"
