@@ -20,6 +20,15 @@ async function main(): Promise<void> {
     process.exit(0);
   };
 
+  const fatal = async (): Promise<void> => {
+    try {
+      await server.close();
+    } catch (error) {
+      console.error("Error during shutdown:", error);
+    }
+    process.exit(1);
+  };
+
   process.on("SIGINT", (signal) => void shutdown(signal));
   process.on("SIGTERM", (signal) => void shutdown(signal));
 
@@ -27,7 +36,9 @@ async function main(): Promise<void> {
   // kill the process with no diagnostic on stderr.
   process.on("unhandledRejection", (reason) => {
     console.error("Unhandled rejection:", reason);
-    process.exitCode = 1;
+    // Setting exitCode alone leaves the stdio transport accepting requests in
+    // an unknown state; shut down instead.
+    void fatal();
   });
   process.on("uncaughtException", (error) => {
     console.error("Uncaught exception:", error);

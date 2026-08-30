@@ -23,6 +23,20 @@ describe("shrink", () => {
     expect(out.items).toContainEqual(expect.objectContaining({ _omitted_items: 5 }));
   });
 
+  it("scales the retained window with the requested cap", () => {
+    const items = Array.from({ length: 400 }, (_, i) => i);
+    const out = bounded({ items }) as { items: unknown[] };
+
+    // A raised cap must actually return more, not the default 20.
+    expect(out.items.length).toBeGreaterThan(250);
+    expect(out.items[0]).toBe(0);
+    expect(out.items.at(-1)).toBe(399);
+  });
+
+  it("normalises a payload that JSON.stringify cannot represent", () => {
+    expect(serialize(undefined)).toBe("null");
+  });
+
   it("keeps every item when the caller already bounded the list", () => {
     const items = Array.from({ length: 120 }, (_, i) => i);
     const out = bounded({ items }) as { items: unknown[] };
@@ -69,11 +83,12 @@ describe("serialize", () => {
   });
 
   it("caps oversized payloads with an explicit notice", () => {
-    process.env.STREAM_MCP_MAX_RESPONSE_BYTES = "100";
-    const text = serialize({ blob: "x".repeat(1000) });
+    process.env.STREAM_MCP_MAX_RESPONSE_BYTES = "500";
+    const text = serialize({ blob: "x".repeat(5000) });
 
     expect(text).toContain("[TRUNCATED:");
     expect(text).toContain("Narrow the filter");
+    expect(Buffer.byteLength(text, "utf8")).toBeLessThanOrEqual(500);
   });
 
   it("measures the cap in UTF-8 bytes, not UTF-16 code units", () => {
@@ -83,7 +98,7 @@ describe("serialize", () => {
     const text = serialize({ blob: "。".repeat(150) });
 
     expect(text).toContain("[TRUNCATED:");
-    expect(Buffer.byteLength(text.split("\n\n[TRUNCATED:")[0], "utf8")).toBeLessThanOrEqual(200);
+    expect(Buffer.byteLength(text, "utf8")).toBeLessThanOrEqual(200);
   });
 });
 

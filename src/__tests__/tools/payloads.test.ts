@@ -13,12 +13,19 @@ describe("tool → SDK payloads", () => {
       const call = mock.last();
 
       expect(call.path).toBe(testCase.path);
-      if ("payload" in testCase) {
-        expect(call.args).toEqual(testCase.payload);
-      }
+      expect(call.args).toEqual(testCase.payload);
       testCase.assert?.(call, result);
     }
   );
+
+  it("requires an exact payload assertion on every case", () => {
+    // `payload` is required by ToolCase, so this guards against a case object
+    // being widened or spread in a way that drops it at runtime.
+    const missing = ALL_CASES.filter(
+      (testCase) => !Object.prototype.hasOwnProperty.call(testCase, "payload")
+    ).map((testCase) => testCase.tool);
+    expect(missing).toEqual([]);
+  });
 
   it("covers every registered tool", () => {
     const covered = new Set(ALL_CASES.map((testCase) => testCase.tool));

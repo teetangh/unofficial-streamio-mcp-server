@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defineTool, type ToolDef } from "../define.js";
+import { defineTool, type AnyToolDef } from "../define.js";
 
 const DEFAULT_VALIDITY_SECONDS = 3600;
 
@@ -42,4 +42,4 @@ const createUserToken = defineTool({
   },
 });
 
-export const tokenTools: ToolDef<any>[] = [createUserToken];
+export const tokenTools: AnyToolDef[] = [createUserToken];

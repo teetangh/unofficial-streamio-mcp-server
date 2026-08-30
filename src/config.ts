@@ -36,9 +36,30 @@ export function getMaxResponseBytes(): number {
   return parsePositiveInt(process.env.STREAM_MCP_MAX_RESPONSE_BYTES, DEFAULT_MAX_RESPONSE_BYTES);
 }
 
+/**
+ * `STREAM_BASE_URL` replaces the origin the SDK sends its JWT authorization
+ * header to, so a plaintext or malformed value would leak app credentials.
+ * Loopback is allowed over http for local testing against a stub.
+ */
 export function getBasePath(): string | undefined {
   const raw = process.env.STREAM_BASE_URL?.trim();
-  return raw ? raw : undefined;
+  if (!raw) return undefined;
+
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(`Invalid STREAM_BASE_URL ${JSON.stringify(raw)} — expected an absolute URL.`);
+  }
+
+  const isLoopback = ["localhost", "127.0.0.1", "[::1]", "::1"].includes(url.hostname);
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && isLoopback)) {
+    throw new Error(
+      `Refusing to use STREAM_BASE_URL ${JSON.stringify(raw)}: the API secret is sent to this ` +
+        `origin, so it must use https (http is allowed only for loopback addresses).`
+    );
+  }
+  return raw;
 }
 
 /** `STREAM_MCP_READ_ONLY=true` registers only tools annotated `readOnlyHint`. */

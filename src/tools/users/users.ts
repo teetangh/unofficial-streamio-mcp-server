@@ -9,7 +9,7 @@ import {
 } from "../../schemas/common.js";
 import { ToolInputError } from "../../utils/errors.js";
 import { bounded } from "../../utils/format.js";
-import { defineTool, type ToolDef } from "../define.js";
+import { defineTool, type AnyToolDef } from "../define.js";
 
 const userSchema = z.object({
   id: z.string().min(1).describe("Unique user ID"),
@@ -85,4 +85,4 @@ const queryUsers = defineTool({
     }),
 });
 
-export const userTools: ToolDef<any>[] = [upsertUsers, queryUsers];
+export const userTools: AnyToolDef[] = [upsertUsers, queryUsers];

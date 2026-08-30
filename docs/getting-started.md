@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Node **22.12** or newer
+- Node **22.12** or newer to run the server; **22.13+** to develop it (ESLint 10 does not support 22.12)
 - A Stream app — [dashboard.getstream.io](https://dashboard.getstream.io)
 
 ## Fastest path

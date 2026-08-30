@@ -106,7 +106,10 @@ suite("live: video", () => {
 
   it("reaches the stop-recording endpoint with a valid recording_type", async () => {
     const error = await harness.callExpectingError("video_stop_recording", call);
-    expect(error).not.toMatch(/404|not found|invalid/i);
+    // Must be the backend refusing on state, not a rejected request shape: a
+    // bad recording_type would 404 on the URL path instead.
+    expect(error).toMatch(/no active session|egress is not running|not being recorded/i);
+    expect(error).not.toMatch(/Invalid input|is a required field|unknown field/i);
   });
 
   it("reaches the start-transcription endpoint", async () => {

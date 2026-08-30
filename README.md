@@ -12,7 +12,7 @@ An [MCP](https://modelcontextprotocol.io) server that gives an AI assistant dete
 npx unofficial-streamio-mcp-server
 ```
 
-Requires **Node 22.12+** (`@stream-io/node-sdk` 0.8 dropped older runtimes).
+Requires **Node 22.12+** at runtime (`@stream-io/node-sdk` 0.8 dropped older versions). Development needs **22.13+**, because ESLint 10 does not support 22.12.
 
 ## Configure
 
@@ -43,15 +43,15 @@ claude mcp add stream-io -e STREAM_API_KEY=... -e STREAM_API_SECRET=... -- npx -
 
 ### Environment variables
 
-| Variable                        | Default | Purpose                                                                                               |
-| ------------------------------- | ------- | ----------------------------------------------------------------------------------------------------- |
-| `STREAM_API_KEY`                | —       | **Required.** Stream app key.                                                                         |
-| `STREAM_API_SECRET`             | —       | **Required.** Stream app secret. Grants full admin access to the app.                                 |
-| `STREAM_MCP_TOOLSETS`           | `all`   | Comma-separated subset of `chat`, `chat-admin`, `video`, `video-admin`, `moderation`, `users`, `app`. |
-| `STREAM_MCP_READ_ONLY`          | `false` | Register only tools annotated read-only.                                                              |
-| `STREAM_TIMEOUT_MS`             | `15000` | Request timeout.                                                                                      |
-| `STREAM_MCP_MAX_RESPONSE_BYTES` | `30000` | Cap on a single tool result.                                                                          |
-| `STREAM_BASE_URL`               | —       | Override the Stream API base URL.                                                                     |
+| Variable                        | Default | Purpose                                                               |
+| ------------------------------- | ------- | --------------------------------------------------------------------- |
+| `STREAM_API_KEY`                | —       | **Required.** Stream app key.                                         |
+| `STREAM_API_SECRET`             | —       | **Required.** Stream app secret. Grants full admin access to the app. |
+| `STREAM_MCP_TOOLSETS`           | `all`   | Comma-separated subset of `chat`, `video`, `moderation`, `users`.     |
+| `STREAM_MCP_READ_ONLY`          | `false` | Register only tools annotated read-only.                              |
+| `STREAM_TIMEOUT_MS`             | `15000` | Request timeout.                                                      |
+| `STREAM_MCP_MAX_RESPONSE_BYTES` | `30000` | Cap on a single tool result.                                          |
+| `STREAM_BASE_URL`               | —       | Override the Stream API base URL.                                     |
 
 The server starts and lists its tools without credentials, so tool discovery works before setup; individual calls then fail with a clear message.
 
@@ -77,15 +77,12 @@ The API secret is an **admin credential** for the entire Stream app. This server
 
 ## Tools
 
-| Toolset       | Tools | Covers                                                           |
-| ------------- | ----- | ---------------------------------------------------------------- |
-| `chat`        | 35    | Channels, messages, threads, reactions, search, read state       |
-| `chat-admin`  | 6     | Channel types, exports                                           |
-| `users`       | 14    | User CRUD, tokens, guests, blocks, deactivation                  |
-| `moderation`  | 16    | Bans, mutes, flags, review queue, blocklists, policy checks      |
-| `video`       | 35    | Calls, members, participants, recording, transcription, HLS/RTMP |
-| `video-admin` | 8     | Call types, reports, stats, edges                                |
-| `app`         | 4     | App settings, rate limits, async tasks                           |
+| Toolset      | Tools | Covers                                   |
+| ------------ | ----- | ---------------------------------------- |
+| `chat`       | 8     | Channels, members, messages              |
+| `users`      | 3     | User upsert, query, tokens               |
+| `moderation` | 3     | Bans, flags                              |
+| `video`      | 16    | Calls, members, recording, transcription |
 
 Full per-tool parameter reference (generated from the registry, never hand-edited):
 

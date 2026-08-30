@@ -1,7 +1,7 @@
 import type { Attachment } from "@stream-io/node-sdk";
 import { z } from "zod";
 import { channelRef, customData, defined } from "../../schemas/common.js";
-import { defineTool, type ToolDef } from "../define.js";
+import { defineTool, type AnyToolDef } from "../define.js";
 
 const attachment = z.object({
   type: z.string().optional().describe("Attachment type, e.g. 'image', 'file', 'video'"),
@@ -95,8 +95,12 @@ const deleteMessage = defineTool({
   },
   handler: async (args, client) =>
     client.chat.deleteMessage(
-      defined({ id: args.message_id, hard: args.hard, deleted_by: args.deleted_by })
+      defined({
+        id: args.message_id,
+        hard: args.hard ?? false,
+        deleted_by: args.deleted_by,
+      })
     ),
 });
 
-export const messageTools: ToolDef<any>[] = [sendMessage, deleteMessage];
+export const messageTools: AnyToolDef[] = [sendMessage, deleteMessage];

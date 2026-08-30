@@ -71,15 +71,12 @@ Invalid values fail fast with a message naming the variable.
 
 ## Toolsets
 
-| Toolset       | Tools | Covers                                                               |
-| ------------- | ----- | -------------------------------------------------------------------- |
-| `chat`        | 35    | Channels, messages, threads, reactions, search, read state           |
-| `chat-admin`  | 6     | Channel types, exports                                               |
-| `users`       | 14    | User CRUD, tokens, guests, blocks, deactivation                      |
-| `moderation`  | 16    | Bans, mutes, flags, review queue, blocklists                         |
-| `video`       | 35    | Calls, members, participants, recording, transcription, broadcasting |
-| `video-admin` | 8     | Call types, reports, stats, edges                                    |
-| `app`         | 4     | App settings, rate limits, async tasks                               |
+| Toolset      | Tools | Covers                                   |
+| ------------ | ----- | ---------------------------------------- |
+| `chat`       | 8     | Channels, members, messages              |
+| `users`      | 3     | User upsert, query, tokens               |
+| `moderation` | 3     | Bans, flags                              |
+| `video`      | 16    | Calls, members, recording, transcription |
 
 ```json
 "env": { "STREAM_MCP_TOOLSETS": "chat,users,moderation" }

@@ -4,8 +4,16 @@ import { randomUUID } from "node:crypto";
 import { getClient } from "../../clients/index.js";
 import { createServer } from "../../server.js";
 
+/**
+ * Live suites need an explicit opt-in as well as credentials. Without the
+ * flag, a direct `vitest run src/__tests__/integration` would create and
+ * delete real Stream objects — and the fixture sweep in global-setup.ts is
+ * only registered when the flag is set, so nothing would clean up after it.
+ */
 export const hasCredentials =
-  Boolean(process.env.STREAM_API_KEY) && Boolean(process.env.STREAM_API_SECRET);
+  Boolean(process.env.STREAM_MCP_LIVE) &&
+  Boolean(process.env.STREAM_API_KEY) &&
+  Boolean(process.env.STREAM_API_SECRET);
 
 /** Prefix for every object this suite creates, so leftovers are identifiable. */
 export const FIXTURE_PREFIX = "mcptest";

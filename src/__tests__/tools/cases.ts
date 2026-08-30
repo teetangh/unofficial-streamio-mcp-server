@@ -7,8 +7,12 @@ export interface ToolCase {
   args: Record<string, unknown>;
   /** Expected `<namespace>.<method>` on the SDK client. */
   path: string;
-  /** Exact payload the SDK method must receive. */
-  payload?: unknown;
+  /**
+   * Exact payload the SDK method must receive. Required — use `undefined` for
+   * methods that take no argument. Without it a case would assert only the
+   * method name, so a wrong or missing field would pass.
+   */
+  payload: unknown;
   /** Extra assertions on the recorded call or the handler's return value. */
   assert?: (call: RecordedCall, result: unknown) => void;
   /** Overrides for the mock client, keyed by SDK path. */

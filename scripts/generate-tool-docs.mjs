@@ -45,8 +45,13 @@ function unwrap(schema) {
   for (let depth = 0; depth < 10; depth += 1) {
     const def = inner?.def;
     if (!def?.innerType) break;
-    if (def.type === "optional" || def.type === "default" || def.type === "nullable") {
+    if (def.type === "optional" || def.type === "default") {
       optional = true;
+      inner = def.innerType;
+      continue;
+    }
+    // Nullable is not optional: a required nullable field must still be sent.
+    if (def.type === "nullable") {
       inner = def.innerType;
       continue;
     }

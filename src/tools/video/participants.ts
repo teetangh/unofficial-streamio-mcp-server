@@ -11,7 +11,7 @@ import {
 } from "../../schemas/common.js";
 import { ToolInputError } from "../../utils/errors.js";
 import { bounded } from "../../utils/format.js";
-import { defineTool, type ToolDef } from "../define.js";
+import { defineTool, type AnyToolDef } from "../define.js";
 
 const updateCallMembers = defineTool({
   name: "video_update_call_members",
@@ -35,8 +35,12 @@ const updateCallMembers = defineTool({
     remove_members: z.array(z.string().min(1)).max(100).optional().describe("User IDs to remove"),
   },
   handler: async (args, client) => {
-    if (args.update_members === undefined && args.remove_members === undefined) {
-      throw new ToolInputError("Pass at least one of `update_members` or `remove_members`.");
+    const hasUpdates = (args.update_members?.length ?? 0) > 0;
+    const hasRemovals = (args.remove_members?.length ?? 0) > 0;
+    if (!hasUpdates && !hasRemovals) {
+      throw new ToolInputError(
+        "Nothing to do — pass a non-empty `update_members` or `remove_members`."
+      );
     }
     const update = args.update_members?.map((entry) =>
       typeof entry === "string" ? { user_id: entry } : defined({ ...entry })
@@ -145,12 +149,18 @@ const muteUsers = defineTool({
     if (!args.mute_all_users && (args.user_ids === undefined || args.user_ids.length === 0)) {
       throw new ToolInputError("Pass either `user_ids` or `mute_all_users: true`.");
     }
+    const audio = args.audio ?? true;
+    if (!audio && !args.video && !args.screenshare && !args.screenshare_audio) {
+      throw new ToolInputError(
+        "Nothing to mute — `audio` is false and no other track is selected. Enable at least one of audio, video, screenshare or screenshare_audio."
+      );
+    }
     return client.video.muteUsers({
       type: args.call_type,
       id: args.call_id,
       muted_by_id: args.muted_by_id,
       // The API mutes nothing unless a track flag is set, so default audio on.
-      audio: args.audio ?? true,
+      audio,
       ...defined({
         user_ids: args.user_ids,
         mute_all_users: args.mute_all_users,
@@ -162,7 +172,7 @@ const muteUsers = defineTool({
   },
 });
 
-export const participantTools: ToolDef<any>[] = [
+export const participantTools: AnyToolDef[] = [
   updateCallMembers,
   queryCallMembers,
   blockUser,

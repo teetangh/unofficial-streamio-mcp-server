@@ -1,5 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult, ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import type { StreamClient } from "@stream-io/node-sdk";
 import { z } from "zod";
 import { getClient } from "../clients/index.js";
@@ -24,7 +24,13 @@ export type ToolArgs<S extends z.ZodRawShape> = z.infer<z.ZodObject<S>> & {
   verbose?: boolean;
 };
 
-export interface ToolDef<S extends z.ZodRawShape = z.ZodRawShape> {
+/**
+ * @typeParam S - the tool's zod input shape
+ * @typeParam R - the response type, inferred from `handler` and `compact`
+ *                together, so a `compact` projection is checked against the
+ *                real Stream response rather than taking `any`.
+ */
+export interface ToolDef<S extends z.ZodRawShape = z.ZodRawShape, R = unknown> {
   /** Canonical tool name, e.g. `chat_send_message`. */
   name: string;
   /** Human-readable label surfaced to MCP clients. */
@@ -33,7 +39,7 @@ export interface ToolDef<S extends z.ZodRawShape = z.ZodRawShape> {
   toolset: Toolset;
   inputSchema: S;
   annotations: ToolAnnotations;
-  handler: (args: ToolArgs<S>, client: StreamClient) => Promise<unknown>;
+  handler: (args: ToolArgs<S>, client: StreamClient) => Promise<R>;
   /**
    * How to reduce the response before it reaches the model.
    * - omitted: the default shrinker (drops noisy keys, caps arrays/strings)
@@ -41,19 +47,39 @@ export interface ToolDef<S extends z.ZodRawShape = z.ZodRawShape> {
    * - `false`: return the response untouched (for tools whose payload *is*
    *   the config blob the shrinker would otherwise drop)
    */
-  compact?: ((raw: any) => unknown) | false;
+  compact?: ((raw: R) => unknown) | false;
   /** Deprecated names kept working for one minor release. */
   aliases?: string[];
 }
 
-/** Helper that preserves the shape's literal type for handler inference. */
-export function defineTool<S extends z.ZodRawShape>(def: ToolDef<S>): ToolDef<S> {
+/**
+ * A tool definition with its input shape and response type erased.
+ *
+ * Tools are heterogeneous — each has a different schema and a different Stream
+ * response — so any collection of them needs erasure. This mirrors Zod's own
+ * `ZodTypeAny`. Precision is kept where it pays: `defineTool` infers handler
+ * argument types from the schema and `compact`'s parameter from the handler's
+ * return type, so authoring a tool is fully checked.
+ */
+/*
+ * `handler` takes its args as a property, so it is contravariant: a
+ * ToolDef<SpecificShape> is not assignable to ToolDef<ZodRawShape>. Erasing
+ * both parameters is the only way to hold tools in one array, and is the same
+ * approach Zod takes with `ZodTypeAny = ZodType<any, any, any>`.
+ */
+export type AnyToolDef = ToolDef<any, any>;
+
+/**
+ * Preserves the schema's literal type and infers the response type, so a
+ * handler's `args` and a `compact`'s `raw` are both precisely typed.
+ */
+export function defineTool<S extends z.ZodRawShape, R>(def: ToolDef<S, R>): ToolDef<S, R> {
   return def;
 }
 
-function applyCompaction<S extends z.ZodRawShape>(
-  def: ToolDef<S>,
-  raw: unknown,
+function applyCompaction<S extends z.ZodRawShape, R>(
+  def: ToolDef<S, R>,
+  raw: R,
   verbose: boolean
 ): unknown {
   if (verbose) return raw;
@@ -62,7 +88,7 @@ function applyCompaction<S extends z.ZodRawShape>(
   return shrink(raw);
 }
 
-function isRegistrable(def: ToolDef<any>, enabled: ReadonlySet<Toolset>): boolean {
+function isRegistrable(def: AnyToolDef, enabled: ReadonlySet<Toolset>): boolean {
   if (!enabled.has(def.toolset)) return false;
   if (isReadOnly() && def.annotations.readOnlyHint !== true) return false;
   return true;
@@ -73,9 +99,9 @@ function isRegistrable(def: ToolDef<any>, enabled: ReadonlySet<Toolset>): boolea
  * All cross-cutting behaviour — client lookup, error mapping, compaction —
  * lives here so tool modules stay declarative.
  */
-export function registerTool<S extends z.ZodRawShape>(
+export function registerTool<S extends z.ZodRawShape, R>(
   server: McpServer,
-  def: ToolDef<S>,
+  def: ToolDef<S, R>,
   enabled: ReadonlySet<Toolset>
 ): boolean {
   if (!isRegistrable(def, enabled)) return false;
@@ -87,7 +113,7 @@ export function registerTool<S extends z.ZodRawShape>(
 
   const makeHandler =
     (deprecatedAs?: string) =>
-    async (args: ToolArgs<S>): Promise<any> => {
+    async (args: ToolArgs<S>): Promise<CallToolResult> => {
       try {
         const { verbose = false } = args;
         const client = getClient();
@@ -137,7 +163,7 @@ export function registerTool<S extends z.ZodRawShape>(
   return true;
 }
 
-export function registerTools(server: McpServer, defs: readonly ToolDef<any>[]): number {
+export function registerTools(server: McpServer, defs: readonly AnyToolDef[]): number {
   const enabled = getEnabledToolsets();
   let count = 0;
   for (const def of defs) {

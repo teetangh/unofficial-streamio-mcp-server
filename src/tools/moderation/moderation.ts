@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { customData, defined } from "../../schemas/common.js";
-import { defineTool, type ToolDef } from "../define.js";
+import { defineTool, type AnyToolDef } from "../define.js";
 
 /** Stream's moderation entity types, as used by flag/check/review. */
 const ENTITY_TYPES = [
@@ -141,4 +141,4 @@ const flagContent = defineTool({
     ),
 });
 
-export const moderationTools: ToolDef<any>[] = [banUser, unbanUser, flagContent];
+export const moderationTools: AnyToolDef[] = [banUser, unbanUser, flagContent];

@@ -27,9 +27,10 @@ const MAX_STRING_CHARS = 2_000;
  * When an array is trimmed, both ends are kept. Stream returns messages and
  * replies oldest-first, so keeping only the head would drop the *newest*
  * entries — the ones a caller reading chat history almost always wants.
+ *
+ * The split scales with the cap, so raising the cap actually returns more.
  */
-const HEAD_ITEMS = 12;
-const TAIL_ITEMS = MAX_ARRAY_ITEMS - HEAD_ITEMS;
+const HEAD_SHARE = 0.6;
 
 function omissionMarker(omitted: number): Record<string, unknown> {
   return {
@@ -65,8 +66,8 @@ export function shrink(value: unknown, maxArrayItems: number = MAX_ARRAY_ITEMS):
     if (value.length <= maxArrayItems) {
       return value.map((entry) => shrink(entry, maxArrayItems));
     }
-    const head = Math.min(HEAD_ITEMS, maxArrayItems - 1);
-    const tail = Math.max(1, Math.min(TAIL_ITEMS, maxArrayItems - head));
+    const head = Math.max(1, Math.floor(maxArrayItems * HEAD_SHARE));
+    const tail = Math.max(1, maxArrayItems - head);
     return [
       ...value.slice(0, head).map((entry) => shrink(entry, maxArrayItems)),
       omissionMarker(value.length - head - tail),
@@ -83,24 +84,77 @@ export function shrink(value: unknown, maxArrayItems: number = MAX_ARRAY_ITEMS):
   return out;
 }
 
-/** Serialises a tool payload, capping total bytes with an explicit notice. */
-export function serialize(data: unknown): string {
-  const text = typeof data === "string" ? data : JSON.stringify(data, null, 2);
-  const cap = getMaxResponseBytes();
-  const bytes = Buffer.byteLength(text, "utf8");
-  if (bytes <= cap) return text;
+const render = (value: unknown): string => {
+  if (typeof value === "string") return value;
+  // JSON.stringify returns undefined for `undefined` and for a bare function,
+  // which would make Buffer.byteLength throw and turn a success into an error.
+  return JSON.stringify(value, null, 2) ?? "null";
+};
 
-  // Trim by characters until the UTF-8 size fits, so multi-byte content is
-  // measured honestly rather than by UTF-16 code-unit count.
-  let end = Math.min(text.length, cap);
-  while (end > 0 && Buffer.byteLength(text.slice(0, end), "utf8") > cap) {
+const utf8 = (text: string): number => Buffer.byteLength(text, "utf8");
+
+/** The longest array property on an object, which is what to shed first. */
+function largestArrayKey(value: Record<string, unknown>): string | undefined {
+  let best: string | undefined;
+  let bestLength = 1;
+  for (const [key, entry] of Object.entries(value)) {
+    if (Array.isArray(entry) && entry.length > bestLength) {
+      best = key;
+      bestLength = entry.length;
+    }
+  }
+  return best;
+}
+
+/**
+ * Serialises a tool payload within the byte cap.
+ *
+ * An oversized payload sheds whole list entries first, so what comes back is
+ * still valid JSON that a model can parse — a mid-string slice is worse than
+ * useless. The hard slice remains only for payloads with no list to shed.
+ */
+export function serialize(data: unknown): string {
+  const cap = getMaxResponseBytes();
+  let text = render(data);
+  if (utf8(text) <= cap) return text;
+
+  if (data !== null && typeof data === "object" && !Array.isArray(data)) {
+    const clone = { ...(data as Record<string, unknown>) } as Record<string, unknown>;
+    const key = largestArrayKey(clone);
+    if (key) {
+      const items = clone[key] as unknown[];
+      let keep = items.length;
+      while (keep > 0) {
+        keep = Math.floor(keep / 2);
+        clone[key] = items.slice(0, keep);
+        clone._omitted_items = items.length - keep;
+        clone._hint = `Response exceeded ${cap} bytes; ${items.length - keep} of ${items.length} \`${key}\` entries were dropped. Lower the limit or narrow the filter.`;
+        text = render(clone);
+        if (utf8(text) <= cap) return text;
+      }
+    }
+  }
+
+  // Nothing sheddable — fall back to a slice and say so plainly. The notice is
+  // budgeted for up front, so the returned text stays inside the cap rather
+  // than exceeding it by the length of its own warning.
+  text = render(data);
+  const bytes = utf8(text);
+  const notice =
+    `\n\n[TRUNCATED: response was ${bytes} bytes, capped at ${cap}. ` +
+    `Narrow the filter or lower the limit — the JSON above is incomplete and will not parse.]`;
+  const shortNotice = `\n\n[TRUNCATED: ${bytes}B exceeds the ${cap}B cap]`;
+
+  // Under a very small cap not even the notice fits. Prefer the notice: a
+  // caller learns more from "truncated" than from a few bytes of JSON.
+  const chosen = utf8(notice) <= cap ? notice : shortNotice;
+  const budget = Math.max(0, cap - utf8(chosen));
+
+  let end = Math.min(text.length, budget);
+  while (end > 0 && utf8(text.slice(0, end)) > budget) {
     end = Math.floor(end * 0.9);
   }
-  return (
-    `${text.slice(0, end)}\n\n` +
-    `[TRUNCATED: response was ${bytes} bytes, capped at ${cap}. ` +
-    `Narrow the filter or lower the limit — the JSON above is incomplete and will not parse.]`
-  );
+  return `${text.slice(0, end)}${chosen}`;
 }
 
 /**
@@ -114,7 +168,7 @@ export function bounded(raw: unknown): unknown {
 }
 
 /** Shallow-drops keys from an object, then shrinks what remains. */
-export function omit<T extends Record<string, unknown>>(
+export function omit<T extends object>(
   value: T | undefined,
   keys: readonly string[],
   maxArrayItems?: number

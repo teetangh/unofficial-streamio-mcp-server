@@ -1,6 +1,6 @@
 import { channelTools } from "./chat/channels.js";
 import { messageTools } from "./chat/messages.js";
-import type { ToolDef } from "./define.js";
+import type { AnyToolDef } from "./define.js";
 import { moderationTools } from "./moderation/moderation.js";
 import { tokenTools } from "./users/tokens.js";
 import { userTools } from "./users/users.js";
@@ -13,7 +13,7 @@ import { participantTools } from "./video/participants.js";
  * Tests and the docs generator read this array — nothing introspects the
  * MCP server's internals.
  */
-export const ALL_TOOLS: readonly ToolDef<any>[] = [
+export const ALL_TOOLS: readonly AnyToolDef[] = [
   ...tokenTools,
   ...userTools,
   ...channelTools,
@@ -24,6 +24,6 @@ export const ALL_TOOLS: readonly ToolDef<any>[] = [
   ...mediaTools,
 ];
 
-export function getTool(name: string): ToolDef<any> | undefined {
+export function getTool(name: string): AnyToolDef | undefined {
   return ALL_TOOLS.find((tool) => tool.name === name || (tool.aliases ?? []).includes(name));
 }

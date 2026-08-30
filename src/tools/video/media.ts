@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { callRef, defined } from "../../schemas/common.js";
 import { transcriptionLanguage } from "../../schemas/languages.js";
-import { defineTool, type ToolDef } from "../define.js";
+import { defineTool, type AnyToolDef } from "../define.js";
 
 /**
  * `recording_type` is a path segment, not a body field:
@@ -156,7 +156,7 @@ const listTranscriptions = defineTool({
     client.video.listTranscriptions({ type: args.call_type, id: args.call_id }),
 });
 
-export const mediaTools: ToolDef<any>[] = [
+export const mediaTools: AnyToolDef[] = [
   startRecording,
   stopRecording,
   listRecordings,

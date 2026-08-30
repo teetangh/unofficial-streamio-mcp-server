@@ -1,3 +1,4 @@
+import type { QueryChannelsResponse } from "@stream-io/node-sdk";
 import { z } from "zod";
 import {
   channelMember,
@@ -11,7 +12,7 @@ import {
 } from "../../schemas/common.js";
 import { ToolInputError } from "../../utils/errors.js";
 import { omit } from "../../utils/format.js";
-import { defineTool, type ToolDef } from "../define.js";
+import { defineTool, type AnyToolDef } from "../define.js";
 
 const createChannel = defineTool({
   name: "chat_create_channel",
@@ -106,11 +107,11 @@ const queryChannels = defineTool({
   },
   // Keeps a page readable: per-channel read state and full member objects
   // dominate the raw payload.
-  compact: (raw: { channels?: any[] }) => ({
+  compact: (raw: QueryChannelsResponse) => ({
     channels: (raw.channels ?? []).map((entry) => ({
       ...(omit(entry.channel, ["config"]) as object),
       member_count: entry.channel?.member_count ?? entry.members?.length,
-      members: entry.members?.slice(0, 10).map((member: any) => ({
+      members: entry.members?.slice(0, 10).map((member) => ({
         user_id: member.user_id,
         channel_role: member.channel_role,
       })),
@@ -301,7 +302,7 @@ const updateChannelData = defineTool({
   },
 });
 
-export const channelTools: ToolDef<any>[] = [
+export const channelTools: AnyToolDef[] = [
   createChannel,
   queryChannels,
   updateChannel,

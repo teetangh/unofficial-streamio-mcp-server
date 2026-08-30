@@ -12,7 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # @stream-io/node-sdk >= 0.8 requires Node >= 22.12.
+        # Runtime floor is 22.12 (@stream-io/node-sdk >= 0.8); the lint step
+        # needs 22.13+ because ESLint 10 does not support 22.12.
         node-version: [22, 24]
 
     steps:
