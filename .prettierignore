@@ -3,3 +3,9 @@ node_modules/
 package-lock.json
 docs/chat-tools.md
 docs/video-tools.md
+
+# Written by release-please on every release, in its own formatting. Prettier
+# should not police files a generator owns -- it would fail CI on every release
+# for a bot-authored diff no human can pre-format.
+.release-please-manifest.json
+CHANGELOG.md
