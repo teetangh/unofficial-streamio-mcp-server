@@ -298,8 +298,15 @@ on:
 ```yaml
 if: >-
   needs.release-please.outputs.release_created == 'true' ||
-  (github.event_name == 'workflow_dispatch' && inputs.publish)
+  (github.event_name == 'workflow_dispatch' && inputs.publish &&
+   github.ref == 'refs/heads/main')
 ```
+
+**Pin the manual path to the default branch.** `workflow_dispatch` lets the
+caller choose a ref, and `actions/checkout` honours it by default — so without
+this guard anyone with write access could publish arbitrary code under your
+package name, defeating the point of trusted publishing. Check `github.ref`
+_and_ pass `ref: main` to checkout.
 
 The tag and GitHub Release already exist and point at the right commit, so a
 retry publishes the same artifact without touching the version.

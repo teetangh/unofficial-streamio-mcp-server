@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: Publish the current main to npm
+        description: Publish the current main to npm (runs from main regardless of the branch selected)
         type: boolean
         default: false
 
@@ -34,9 +34,13 @@ jobs:
   # just tagged. Everything is re-verified before anything reaches npm.
   publish:
     needs: release-please
+    # A manual run can select any ref, and checkout would honour it — so a
+    # dispatch from an arbitrary branch could publish arbitrary code under this
+    # package name. Manual publishing is pinned to the default branch.
     if: >-
       needs.release-please.outputs.release_created == 'true' ||
-      (github.event_name == 'workflow_dispatch' && inputs.publish)
+      (github.event_name == 'workflow_dispatch' && inputs.publish &&
+       github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -45,6 +49,9 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Never the dispatch-selected ref.
+          ref: main
 
       # `registry-url` is deliberately omitted. It makes setup-node write an
       # .npmrc containing `_authToken=${NODE_AUTH_TOKEN}`; with no token set —
