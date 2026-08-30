@@ -137,6 +137,15 @@ describe("serialize under pressure", () => {
     expect(parsed._hint).toContain("were dropped");
   });
 
+  it("keeps a projection's own hint in front of the truncation notice", () => {
+    process.env.STREAM_MCP_MAX_RESPONSE_BYTES = "700";
+    const items = Array.from({ length: 60 }, (_, index) => ({ id: `row-${index}` }));
+    const parsed = JSON.parse(serialize({ items, _hint: "Use chat_get_channel for one channel." }));
+
+    expect(parsed._hint).toContain("Use chat_get_channel for one channel.");
+    expect(parsed._hint).toContain("were dropped");
+  });
+
   it("returns parseable JSON when it has to drop rows", () => {
     process.env.STREAM_MCP_MAX_RESPONSE_BYTES = "400";
     const items = Array.from({ length: 40 }, (_, index) => ({ id: `row-${index}` }));

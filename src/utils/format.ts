@@ -145,6 +145,11 @@ export function serialize(data: unknown): string {
     const key = largestArrayKey(clone);
     if (key) {
       const items = clone[key] as unknown[];
+      // Every list projection sets its own `_hint`. Read it once, before the
+      // search starts overwriting it, and keep it in front of the truncation
+      // notice — a caller loses the projection's guidance otherwise, at the
+      // moment they most need "pass verbose:true".
+      const toolHint = typeof clone._hint === "string" ? `${clone._hint} ` : "";
       // Applies a candidate prefix and reports whether it fits. Output grows
       // with the number of entries kept, so the largest fitting prefix can be
       // bisected for; `keep = 0` is still a useful answer, because an envelope
@@ -152,7 +157,7 @@ export function serialize(data: unknown): string {
       const fits = (keep: number): boolean => {
         clone[key] = items.slice(0, keep);
         clone._omitted_items = items.length - keep;
-        clone._hint = omissionHint(cap, key, items.length, keep);
+        clone._hint = toolHint + omissionHint(cap, key, items.length, keep);
         return utf8(render(clone, 0)) <= cap;
       };
 
