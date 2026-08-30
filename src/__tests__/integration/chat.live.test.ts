@@ -15,7 +15,7 @@ suite("live: chat and moderation", () => {
 
   beforeAll(async () => {
     await harness.connect();
-    harness.deleteUsersOnCleanup([alice, bob, carol]);
+    harness.trackUsers(alice, bob, carol);
     harness.deleteChannelOnCleanup("messaging", channelId);
   }, 60_000);
 

@@ -12,7 +12,7 @@ suite("live: video", () => {
 
   beforeAll(async () => {
     await harness.connect();
-    harness.deleteUsersOnCleanup([host, guest]);
+    harness.trackUsers(host, guest);
     harness.deleteCallOnCleanup("default", callId);
 
     await harness.call("chat_upsert_users", {
