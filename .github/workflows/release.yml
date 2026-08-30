@@ -3,6 +3,14 @@ name: Release
 on:
   push:
     branches: [main]
+  # Recovery path: republish the current main without cutting a new version,
+  # e.g. after a transient registry failure or a misconfigured publisher.
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the current main to npm
+        type: boolean
+        default: false
 
 # release-please needs to push its release branch and open a PR.
 permissions:
@@ -26,7 +34,9 @@ jobs:
   # just tagged. Everything is re-verified before anything reaches npm.
   publish:
     needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    if: >-
+      needs.release-please.outputs.release_created == 'true' ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -36,10 +46,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # `registry-url` is deliberately omitted. It makes setup-node write an
+      # .npmrc containing `_authToken=${NODE_AUTH_TOKEN}`; with no token set —
+      # the expected state for trusted publishing — npm takes the classic-auth
+      # path, never performs the OIDC handshake, and the registry rejects the
+      # PUT as anonymous with a misleading 404.
+      # https://github.com/actions/setup-node/issues/1551
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
           cache: npm
 
       # Trusted publishing needs npm >= 11.5.1. Node 24 ships a new enough npm,
@@ -57,5 +72,13 @@ jobs:
 
       # No NPM_TOKEN. Authentication is the OIDC token above, and npm attaches
       # a provenance attestation automatically for public packages built here.
+      - name: Verify no token-based auth is configured
+        run: |
+          if npm config get //registry.npmjs.org/:_authToken | grep -qv '^undefined$'; then
+            echo "An _authToken is configured; npm will use classic auth instead of OIDC." >&2
+            exit 1
+          fi
+          echo "No _authToken configured — npm will use OIDC."
+
       - name: Publish to npm
         run: npm publish

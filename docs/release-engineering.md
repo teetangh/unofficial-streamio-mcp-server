@@ -235,6 +235,75 @@ that establishes trust:
 > require you to explicitly select at least one allowed action.
 > — [npm docs][trustedpub]
 
+### Two traps that produce a misleading error
+
+**`setup-node`'s `registry-url` breaks OIDC.** Setting it makes the action
+write an `.npmrc` containing:
+
+```
+//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}
+```
+
+That is correct for classic token auth. With trusted publishing there is no
+token, so the placeholder expands to empty, npm takes the classic-auth path,
+never performs the OIDC handshake, and the registry treats the request as
+anonymous. Anonymous users cannot `PUT`, so you get:
+
+```
+npm error 404 Not Found - PUT https://registry.npmjs.org/<package>
+npm error 404 The requested resource '<package>@<version>' could not be
+found or you do not have permission to access it.
+```
+
+The 404 is misleading — npm masks 401/403 as 404 so the registry does not leak
+which packages exist. **Omit `registry-url` entirely** when publishing via
+OIDC. Tracked as [actions/setup-node#1551][setupnode1551].
+
+**Node 22 ships npm 10.** Trusted publishing needs npm ≥ 11.5.1, so a
+`node-version: 22` job silently falls back to token auth. Use Node 24, or
+install a new enough npm explicitly.
+
+A defensive check worth adding before `npm publish`:
+
+```yaml
+- name: Verify no token-based auth is configured
+  run: |
+    if npm config get //registry.npmjs.org/:_authToken | grep -qv '^undefined$'; then
+      echo "An _authToken is configured; npm will use classic auth instead of OIDC." >&2
+      exit 1
+    fi
+```
+
+### Always give yourself a republish path
+
+A publish can fail for reasons unrelated to the code — a misconfigured trusted
+publisher, a registry outage, an expired setting. If publishing is only
+triggered by "a release PR was merged", recovering means cutting a new version
+for no reason.
+
+Add a manual trigger that republishes the current default branch:
+
+```yaml
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the current main to npm
+        type: boolean
+        default: false
+```
+
+```yaml
+if: >-
+  needs.release-please.outputs.release_created == 'true' ||
+  (github.event_name == 'workflow_dispatch' && inputs.publish)
+```
+
+The tag and GitHub Release already exist and point at the right commit, so a
+retry publishes the same artifact without touching the version.
+
 ### Provenance comes free
 
 > When you publish using trusted publishing from GitHub Actions or GitLab CI/CD,
@@ -261,6 +330,17 @@ package, `repository` field in `package.json` matching the publishing location
 (case-sensitive), and a supported cloud CI.
 
 ---
+
+### Do I need `npm login` on every machine?
+
+No — and that is the point. With CI publishing, **no human ever runs
+`npm publish`**, so no developer machine needs npm credentials at all. A fresh
+laptop needs `git` and `npm ci`; publishing rights live entirely in the
+repository/workflow identity that npm was told to trust.
+
+`npm login` is only needed if you publish by hand, which this setup exists to
+avoid. Avoiding it also removes the "works on my machine" release: the artifact
+is always built on a clean runner from a tagged commit.
 
 ## 6. Dist-tags: how npm decides what "install" means
 
@@ -395,6 +475,7 @@ npm dist-tag add unofficial-streamio-mcp-server@0.1.0 latest   # stop the bleedi
 - [Hardening npm publishing with trusted publishing][hardening] — threat model for tokens vs OIDC
 - [The Ultimate Guide to NPM Release Automation][releaseauto] — semantic-release vs release-please vs Changesets
 - [release-please-action][rpaction] — the GitHub Action used here
+- [actions/setup-node#1551][setupnode1551] — `registry-url` writes an `_authToken` line that breaks OIDC
 
 [semver]: https://semver.org/
 [cc]: https://www.conventionalcommits.org/en/v1.0.0/
@@ -406,3 +487,4 @@ npm dist-tag add unofficial-streamio-mcp-server@0.1.0 latest   # stop the bleedi
 [hardening]: https://codenote.net/en/posts/npm-trusted-publishing-oidc-staged-hardened-release/
 [releaseauto]: https://oleksiipopov.com/blog/npm-release-automation/
 [rpaction]: https://github.com/googleapis/release-please-action
+[setupnode1551]: https://github.com/actions/setup-node/issues/1551
