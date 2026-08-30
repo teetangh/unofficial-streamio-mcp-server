@@ -43,9 +43,26 @@ describe("tool → SDK payloads", () => {
       mock.client
     );
 
-    expect(mock.calls.map((call) => call.path)).toEqual([
-      "apiClient.sendRequest",
-      "chat.getOrCreateChannel",
+    expect(mock.calls).toEqual([
+      {
+        path: "apiClient.sendRequest",
+        args: [
+          "GET",
+          "/api/v2/chat/channels/{type}/{id}",
+          { type: "messaging", id: "general" },
+          { payload: JSON.stringify({ state: true, messages_limit: 25, members_limit: 30 }) },
+        ],
+      },
+      {
+        path: "chat.getOrCreateChannel",
+        args: {
+          type: "messaging",
+          id: "general",
+          state: true,
+          messages: { limit: 25, id_lt: "m1" },
+          members: { limit: 30 },
+        },
+      },
     ]);
   });
 

@@ -194,8 +194,18 @@ describe("video_query_call_participants", () => {
   });
 
   it("explains an empty list instead of leaving it to be read as missing data", () => {
-    expect(view("video_query_call_participants", raw([]))._hint).toMatch(/nobody is connected/);
+    expect(view("video_query_call_participants", raw([]))._hint).toMatch(/no session is live/);
     expect(view("video_query_call_participants", raw([])).session_id).toBeUndefined();
+  });
+
+  it("distinguishes a filter that matched nobody from a call with no session", () => {
+    const live = raw([]);
+    live.call.current_session_id = "session-9";
+    const out = view("video_query_call_participants", live);
+
+    expect(out.session_id).toBe("session-9");
+    expect(out._hint).toMatch(/A session IS live/);
+    expect(out._hint).not.toMatch(/no session is live/);
   });
 
   it("projects a participant to who they are and when they joined", () => {
@@ -397,6 +407,28 @@ describe("app_get_rate_limits", () => {
 
     expect(Object.keys(out.server_side.consumed)).toEqual(["QueryChannels"]);
     expect(out.server_side.endpoint_count).toBe(2);
+    expect(out.unmatched_endpoints).toBeUndefined();
+  });
+
+  it("treats a blank endpoint list as no filter at all", () => {
+    // `"".split(",").filter(Boolean)` is `[]`, which is truthy — it must not
+    // select every endpoint.
+    for (const endpoints of ["", " , "]) {
+      const out = view("app_get_rate_limits", raw, { endpoints });
+      expect(Object.keys(out.server_side.consumed)).toEqual(["QueryChannels"]);
+      expect(out.server_side.limits).toBeUndefined();
+      expect(out.unmatched_endpoints).toBeUndefined();
+    }
+  });
+
+  it("keeps the unity group, so its endpoints are not reported as unknown", () => {
+    const out = view(
+      "app_get_rate_limits",
+      { ...raw, unity: { UnityConnect: { limit: 100, remaining: 100, reset: 1 } } },
+      { endpoints: "UnityConnect" }
+    );
+
+    expect(out.unity.limits.UnityConnect.limit).toBe(100);
     expect(out.unmatched_endpoints).toBeUndefined();
   });
 });

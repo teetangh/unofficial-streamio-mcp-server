@@ -219,9 +219,11 @@ const queryCallParticipants = defineTool({
       role: member.role,
     })),
     _hint:
-      raw.participants.length === 0
-        ? "No participants. This endpoint sees only users connected to the call's current session, so an empty list means nobody is connected right now — `session_id` is absent when no session is live. Use video_query_call_members for the roster, or video_get_call_report for a session that has ended."
-        : "Participants are who is connected right now; members are the roster. Use video_get_call for the call's settings, ingress and egress.",
+      raw.participants.length > 0
+        ? "Participants are who is connected right now; members are the roster. Use video_get_call for the call's settings, ingress and egress."
+        : raw.call.current_session_id
+          ? "No participant matched the filter. A session IS live on this call, so widen `user_ids` / `published_tracks` — the people connected to it simply are not the ones you asked about."
+          : "No participants. This endpoint sees only users connected to the call's current session, and no session is live — that is what an absent `session_id` means. Use video_query_call_members for the roster, or video_get_call_report for a session that has ended.",
   }),
   handler: async (args, client) => {
     if (args.user_ids === undefined && args.published_tracks === undefined) {

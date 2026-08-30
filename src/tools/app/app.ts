@@ -161,10 +161,13 @@ const getRateLimits = defineTool({
   // is the normal case — filtering it out returned an empty result for the
   // question this tool exists to answer.
   compact: (raw: GetRateLimitsResponse, args) => {
-    const requested = args.endpoints
+    // A blank or all-whitespace list parses to `[]`, which is truthy — it must
+    // fall back to the unfiltered projection, not select every endpoint.
+    const named = args.endpoints
       ?.split(",")
       .map((name) => name.trim())
       .filter(Boolean);
+    const requested = named?.length ? named : undefined;
     const matched = new Set<string>();
 
     const summarise = (group: Record<string, LimitInfoResponse> | undefined) => {
@@ -186,6 +189,9 @@ const getRateLimits = defineTool({
       android: summarise(raw.android),
       ios: summarise(raw.ios),
       web: summarise(raw.web),
+      // Dropping a platform would also make every endpoint it holds look
+      // unrecognised in `unmatched_endpoints`.
+      unity: summarise(raw.unity),
     };
     const unmatched = requested?.filter((name) => !matched.has(name));
 

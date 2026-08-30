@@ -790,6 +790,31 @@ export const callCases: ToolCase[] = [
     path: "video.queryCallStats",
     payload: { filter_conditions: { call_cid: { $eq: "default:standup" } }, limit: 10 },
   },
+  {
+    // The description tells callers to write a time range as an $and of
+    // single-operator expressions, because Stream rejects two operators on one
+    // field. That nesting has to reach the SDK untouched.
+    tool: "video_query_call_stats",
+    args: {
+      filter_conditions: {
+        $and: [
+          { created_at: { $gt: "2026-06-01T00:00:00Z" } },
+          { created_at: { $lt: "2026-09-01T00:00:00Z" } },
+        ],
+      },
+      limit: 5,
+    },
+    path: "video.queryCallStats",
+    payload: {
+      filter_conditions: {
+        $and: [
+          { created_at: { $gt: "2026-06-01T00:00:00Z" } },
+          { created_at: { $lt: "2026-09-01T00:00:00Z" } },
+        ],
+      },
+      limit: 5,
+    },
+  },
   { tool: "video_get_edges", args: {}, path: "video.getEdges", payload: undefined },
 ];
 
