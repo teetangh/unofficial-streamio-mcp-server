@@ -138,6 +138,16 @@ Without `STREAM_API_KEY` the live suites skip rather than fail.
 
 See [docs/architecture.md](docs/architecture.md). In short: every tool is a declarative `ToolDef` in `src/tools/registry.ts`; `src/tools/define.ts` wires client lookup, error mapping, compaction and toolset gating once, so tool modules contain nothing but schema and request-building.
 
+## Releasing
+
+Versioning, tagging and publishing are automated with
+[release-please](https://github.com/googleapis/release-please) driven by
+Conventional Commits, and published to npm with OIDC trusted publishing (no
+stored token, automatic provenance).
+
+See [docs/release-engineering.md](docs/release-engineering.md) for the full
+framework, including the one-time npmjs.com setup.
+
 ## License
 
 MIT
