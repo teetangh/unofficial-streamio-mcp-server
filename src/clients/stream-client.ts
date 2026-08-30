@@ -1,4 +1,5 @@
 import { StreamClient } from "@stream-io/node-sdk";
+import { getBasePath, getTimeoutMs } from "../config.js";
 
 let client: StreamClient | null = null;
 
@@ -17,12 +18,18 @@ function getConfig(): { apiKey: string; apiSecret: string } {
 export function getClient(): StreamClient {
   if (!client) {
     const { apiKey, apiSecret } = getConfig();
-    client = new StreamClient(apiKey, apiSecret);
+    const basePath = getBasePath();
+    // The SDK defaults to a 3s timeout, which is too tight for query/export
+    // endpoints and surfaces as an opaque "request was aborted" error.
+    client = new StreamClient(apiKey, apiSecret, {
+      timeout: getTimeoutMs(),
+      ...(basePath !== undefined && { basePath }),
+    });
   }
   return client;
 }
 
-/** Reset client — used for testing */
+/** Reset client — used for testing, and after an env change. */
 export function resetClient(): void {
   client = null;
 }

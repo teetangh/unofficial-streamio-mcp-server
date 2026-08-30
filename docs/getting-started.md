@@ -1,11 +1,30 @@
-# Getting Started
+# Getting started
 
-## Prerequisites
+## Requirements
 
-- **Node.js 18+**
-- A [Stream.io](https://getstream.io) account with API key and secret (from your Stream Dashboard)
+- Node **22.12** or newer
+- A Stream app — [dashboard.getstream.io](https://dashboard.getstream.io)
 
-## Installation
+## Fastest path
+
+Add this to your MCP client config (see [configuration.md](configuration.md) for exact file paths):
+
+```json
+{
+  "mcpServers": {
+    "stream-io": {
+      "command": "npx",
+      "args": ["-y", "unofficial-streamio-mcp-server"],
+      "env": {
+        "STREAM_API_KEY": "your-api-key",
+        "STREAM_API_SECRET": "your-api-secret"
+      }
+    }
+  }
+}
+```
+
+## From source
 
 ```bash
 git clone https://github.com/teetangh/unofficial-streamio-mcp-server.git
@@ -14,68 +33,54 @@ npm install
 npm run build
 ```
 
-## Configuration
+Point your client at `build/index.js`.
 
-You need two environment variables:
+## Verify it works
 
-| Variable | Description |
-|----------|-------------|
-| `STREAM_API_KEY` | Your Stream application API key |
-| `STREAM_API_SECRET` | Your Stream application API secret |
-
-### Claude Desktop
-
-Add to `~/.claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "stream-io": {
-      "command": "node",
-      "args": ["/absolute/path/to/build/index.js"],
-      "env": {
-        "STREAM_API_KEY": "your-api-key",
-        "STREAM_API_SECRET": "your-api-secret"
-      }
-    }
-  }
-}
+```bash
+npm run smoke
 ```
 
-### Claude Code
+Boots the built server over stdio and checks that `tools/list` returns the full registry with valid schemas.
 
-Add to your project's MCP settings or `~/.claude/settings.json`:
+## A first conversation
 
-```json
-{
-  "mcpServers": {
-    "stream-io": {
-      "command": "node",
-      "args": ["/absolute/path/to/build/index.js"],
-      "env": {
-        "STREAM_API_KEY": "your-api-key",
-        "STREAM_API_SECRET": "your-api-secret"
-      }
-    }
-  }
-}
-```
+Stream requires users to exist before they can be used anywhere else, so most flows start there.
 
-## Quick Example
+> Create two users, `alice` and `bob`, then a messaging channel called "Launch Planning" with both of them, and post a welcome message from alice.
 
-Once configured, you can ask Claude to interact with Stream.io:
+The assistant will call:
 
-> "Create a user named Alice and a messaging channel called general, then send a welcome message."
+1. `chat_upsert_users` — create both users
+2. `chat_create_channel` — `type: "messaging"`, `created_by_id: "alice"`, `name: "Launch Planning"`, `members: ["alice", "bob"]`
+3. `chat_send_message` — `text`, `user_id: "alice"`
 
-Claude will use the MCP tools:
+Then:
 
-1. `chat_upsert_users` — creates the user
-2. `chat_create_channel` — creates the channel
-3. `chat_send_message` — sends the message
+> What's been said in that channel?
 
-## Next Steps
+calls `chat_get_channel`, which returns the channel state and its recent messages.
 
-- [Chat Tools Reference](./chat-tools.md) — all 13 chat tools
-- [Video Tools Reference](./video-tools.md) — all 16 video tools
-- [Configuration Guide](./configuration.md) — advanced setup
-- [Architecture](./architecture.md) — how the server works
+## Video
+
+> Create a call for tomorrow's standup with alice as host, and give bob a token to join it.
+
+1. `video_create_call` — `call_type: "default"`, `created_by_id: "alice"`, `members: [{user_id: "alice", role: "host"}, "bob"]`
+2. `auth_create_call_token` — `user_id: "bob"`, `call_cids: ["default:<call-id>"]`
+
+The token is what a client SDK presents to join. Adding someone as a member does not admit them on its own.
+
+## Common errors
+
+| Message                                       | Cause                                                                                      |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `Missing STREAM_API_KEY or STREAM_API_SECRET` | Credentials are not reaching the process. Check the `env` block in your MCP client config. |
+| `Stream code 16 … does not exist`             | Referencing a user, channel or call that has not been created yet.                         |
+| `Stream code 17`                              | The acting user lacks permission, or the channel/call type forbids the action.             |
+| `Stream code 4`                               | Input error — the message names the offending field.                                       |
+
+## Next
+
+- [configuration.md](configuration.md) — every environment variable, toolset gating, read-only mode
+- [chat-tools.md](chat-tools.md) / [video-tools.md](video-tools.md) — per-tool parameter reference
+- [architecture.md](architecture.md) — how the server is put together
