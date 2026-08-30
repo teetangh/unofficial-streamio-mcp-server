@@ -10,7 +10,44 @@
  * rate limited, and removing them promptly keeps the app tidy mid-run.
  */
 import { StreamClient } from "@stream-io/node-sdk";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ALL_TOOLS } from "../../tools/registry.js";
 import { FIXTURE_PREFIX } from "./harness.js";
+
+let coverageDir: string | undefined;
+
+/**
+ * Fails the run if any registered tool was never invoked live.
+ *
+ * A unit test can only prove a tool builds the request we expect; it cannot
+ * prove Stream accepts it. Several tools shipped broken precisely because
+ * their unit tests mocked the SDK — so every tool has to be exercised for
+ * real, and this gate is what keeps that true as tools are added.
+ */
+function assertFullCoverage(): void {
+  const path = process.env.STREAM_MCP_COVERAGE_FILE;
+  if (!path) return;
+
+  let recorded: string[];
+  try {
+    recorded = readFileSync(path, "utf8").split("\n").filter(Boolean);
+  } catch {
+    recorded = [];
+  }
+  const exercised = new Set(recorded);
+  const missing = ALL_TOOLS.map((tool) => tool.name).filter((name) => !exercised.has(name));
+
+  console.log(
+    `Live tool coverage: ${ALL_TOOLS.length - missing.length}/${ALL_TOOLS.length} exercised.`
+  );
+  if (missing.length > 0) {
+    throw new Error(
+      `${missing.length} tool(s) were never called against the live API:\n  ${missing.join("\n  ")}`
+    );
+  }
+}
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -53,10 +90,20 @@ async function sweep(): Promise<void> {
 }
 
 export async function setup(): Promise<void> {
+  coverageDir = mkdtempSync(join(tmpdir(), "stream-mcp-coverage-"));
+  const file = join(coverageDir, "tools.log");
+  writeFileSync(file, "");
+  process.env.STREAM_MCP_COVERAGE_FILE = file;
+
   // Clear anything a previously interrupted run left behind.
   await sweep();
 }
 
 export async function teardown(): Promise<void> {
   await sweep();
+  try {
+    assertFullCoverage();
+  } finally {
+    if (coverageDir) rmSync(coverageDir, { recursive: true, force: true });
+  }
 }

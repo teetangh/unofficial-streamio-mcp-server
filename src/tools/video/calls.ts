@@ -42,8 +42,8 @@ const createCall = defineTool({
       .max(100)
       .optional()
       .describe("Initial members — user IDs or {user_id, role} objects"),
-    starts_at: z
-      .string()
+    starts_at: z.iso
+      .datetime({ offset: true })
       .optional()
       .describe("ISO-8601 scheduled start time, e.g. '2026-09-01T15:00:00Z'"),
     team: z.string().optional().describe("Team the call belongs to (multi-tenant apps)"),
@@ -66,7 +66,7 @@ const createCall = defineTool({
         data: defined({
           created_by_id: args.created_by_id,
           team: args.team,
-          starts_at: args.starts_at ? new Date(args.starts_at) : undefined,
+          starts_at: args.starts_at === undefined ? undefined : new Date(args.starts_at),
           members,
           custom: args.custom,
           settings_override: args.settings_override,
@@ -118,7 +118,10 @@ const updateCall = defineTool({
     ...callRef,
     settings_override: settingsOverride,
     custom: customData,
-    starts_at: z.string().optional().describe("ISO-8601 scheduled start time"),
+    starts_at: z.iso
+      .datetime({ offset: true })
+      .optional()
+      .describe("ISO-8601 scheduled start time, e.g. '2026-09-01T15:00:00Z'"),
   },
   handler: async (args, client) => {
     if (
@@ -136,7 +139,7 @@ const updateCall = defineTool({
       ...defined({
         settings_override: args.settings_override,
         custom: args.custom,
-        starts_at: args.starts_at ? new Date(args.starts_at) : undefined,
+        starts_at: args.starts_at === undefined ? undefined : new Date(args.starts_at),
       }),
     });
   },
@@ -203,4 +206,238 @@ const queryCalls = defineTool({
     ),
 });
 
-export const callTools: AnyToolDef[] = [createCall, getCall, updateCall, endCall, queryCalls];
+const deleteCall = defineTool({
+  name: "video_delete_call",
+  title: "Delete call",
+  toolset: "video",
+  description:
+    "Delete a call. Soft delete by default. `hard: true` permanently removes the call and its recordings and frees the id.",
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
+  inputSchema: {
+    ...callRef,
+    hard: z.boolean().optional().describe("Permanently delete. Irreversible. Default: false."),
+  },
+  handler: async (args, client) =>
+    client.video.deleteCall({
+      type: args.call_type,
+      id: args.call_id,
+      ...defined({ hard: args.hard }),
+    }),
+});
+
+const goLive = defineTool({
+  name: "video_go_live",
+  title: "Go live",
+  toolset: "video",
+  description:
+    "Take a call out of backstage and make it live for viewers. Can start recording, HLS broadcasting, transcription and closed captions in the same call.",
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
+  inputSchema: {
+    ...callRef,
+    start_hls: z.boolean().optional().describe("Also start HLS broadcasting"),
+    start_recording: z.boolean().optional().describe("Also start recording"),
+    start_transcription: z.boolean().optional().describe("Also start transcription"),
+    start_closed_caption: z.boolean().optional().describe("Also start closed captions"),
+    recording_storage_name: z.string().optional().describe("External storage name for recordings"),
+    transcription_storage_name: z
+      .string()
+      .optional()
+      .describe("External storage name for transcriptions"),
+  },
+  handler: async (args, client) =>
+    client.video.goLive({
+      type: args.call_type,
+      id: args.call_id,
+      ...defined({
+        start_hls: args.start_hls,
+        start_recording: args.start_recording,
+        start_transcription: args.start_transcription,
+        start_closed_caption: args.start_closed_caption,
+        recording_storage_name: args.recording_storage_name,
+        transcription_storage_name: args.transcription_storage_name,
+      }),
+    }),
+});
+
+const stopLive = defineTool({
+  name: "video_stop_live",
+  title: "Stop live",
+  toolset: "video",
+  description:
+    "Put a live call back into backstage. By default this also stops recording, HLS, transcription and RTMP broadcasts — pass the matching `continue_*` flag to keep one running.",
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
+  inputSchema: {
+    ...callRef,
+    continue_hls: z.boolean().optional().describe("Keep HLS broadcasting running"),
+    continue_recording: z.boolean().optional().describe("Keep recording running"),
+    continue_transcription: z.boolean().optional().describe("Keep transcription running"),
+    continue_rtmp_broadcasts: z.boolean().optional().describe("Keep RTMP broadcasts running"),
+    continue_closed_caption: z.boolean().optional().describe("Keep closed captions running"),
+  },
+  handler: async (args, client) =>
+    client.video.stopLive({
+      type: args.call_type,
+      id: args.call_id,
+      ...defined({
+        continue_hls: args.continue_hls,
+        continue_recording: args.continue_recording,
+        continue_transcription: args.continue_transcription,
+        continue_rtmp_broadcasts: args.continue_rtmp_broadcasts,
+        continue_closed_caption: args.continue_closed_caption,
+      }),
+    }),
+});
+
+const ringCall = defineTool({
+  name: "video_ring_call",
+  title: "Ring call members",
+  toolset: "video",
+  description:
+    "Send an incoming-call ring to the call's members, triggering their ringing UI and push notifications.",
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: true,
+  },
+  inputSchema: {
+    ...callRef,
+    member_ids: z
+      .array(z.string().min(1))
+      .optional()
+      .describe("Restrict the ring to these member IDs. Omit to ring all members."),
+    video: z.boolean().optional().describe("Ring as a video call rather than audio-only"),
+  },
+  handler: async (args, client) =>
+    client.video.ringCall({
+      type: args.call_type,
+      id: args.call_id,
+      ...defined({ members_ids: args.member_ids, video: args.video }),
+    }),
+});
+
+const sendCallEvent = defineTool({
+  name: "video_send_call_event",
+  title: "Send custom call event",
+  toolset: "video",
+  description:
+    "Broadcast a custom real-time event to everyone in a call, e.g. {custom: {'render-animation': 'balloons'}}.",
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: true,
+  },
+  inputSchema: {
+    ...callRef,
+    // Stream rejects a server-side event without an acting user.
+    user_id: z.string().min(1).describe("User the event is attributed to"),
+    custom: z.record(z.string(), z.unknown()).describe("Event payload"),
+  },
+  handler: async (args, client) =>
+    client.video.sendCallEvent({
+      type: args.call_type,
+      id: args.call_id,
+      user_id: args.user_id,
+      custom: args.custom,
+    }),
+});
+
+const getCallReport = defineTool({
+  name: "video_get_call_report",
+  title: "Get call report",
+  toolset: "video-admin",
+  description:
+    "Get quality and participation statistics for a finished call session — participants, duration, latency and jitter.",
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
+  inputSchema: {
+    ...callRef,
+    session_id: z.string().optional().describe("Specific session ID. Omit for the latest session."),
+  },
+  handler: async (args, client) =>
+    client.video.getCallReport(
+      defined({ type: args.call_type, id: args.call_id, session_id: args.session_id })
+    ),
+});
+
+const queryCallStats = defineTool({
+  name: "video_query_call_stats",
+  title: "Query call stats",
+  toolset: "video-admin",
+  description:
+    "Query aggregated call quality statistics across calls. Filter by {call_cid: {$eq: 'default:my-call'}} or a time range.",
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
+  inputSchema: {
+    filter_conditions: filterConditions,
+    sort: sortParams,
+    limit: limit(25, 10),
+    next: nextCursor,
+    prev: prevCursor,
+  },
+  handler: async (args, client) =>
+    client.video.queryCallStats(
+      defined({
+        filter_conditions: args.filter_conditions,
+        sort: args.sort,
+        limit: args.limit ?? 10,
+        next: args.next,
+        prev: args.prev,
+      })
+    ),
+});
+
+const getEdges = defineTool({
+  name: "video_get_edges",
+  title: "List edge servers",
+  toolset: "video-admin",
+  description: "List Stream's video edge servers and their current latency and health.",
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
+  inputSchema: {},
+  handler: async (_args, client) => client.video.getEdges(),
+});
+
+export const callTools: AnyToolDef[] = [
+  createCall,
+  getCall,
+  updateCall,
+  endCall,
+  queryCalls,
+  deleteCall,
+  goLive,
+  stopLive,
+  ringCall,
+  sendCallEvent,
+  getCallReport,
+  queryCallStats,
+  getEdges,
+];
