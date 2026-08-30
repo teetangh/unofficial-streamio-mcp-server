@@ -1,6 +1,6 @@
 {
   "name": "unofficial-streamio-mcp-server",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Unofficial MCP server for Stream.io Chat, Video, Users, Moderation and App APIs",
   "type": "module",
   "main": "build/index.js",
