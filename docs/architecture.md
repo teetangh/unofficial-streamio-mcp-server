@@ -1,96 +1,116 @@
 # Architecture
 
-## Directory Structure
+The high-level picture, the request path and the compaction rules are in the
+[README](../README.md#architecture). This page covers the layout and the
+decisions behind it.
 
-```
-src/
-  index.ts                       # Entry point — MCP server + stdio transport
-  clients/
-    stream-client.ts             # Lazy singleton StreamClient facade
-    index.ts                     # Re-exports
-  tools/
-    index.ts                     # registerAllTools() aggregator
-    chat/
-      index.ts                   # registerChatTools() — 13 tools
-      create-token.ts
-      upsert-users.ts
-      create-channel.ts
-      send-message.ts
-      query-channels.ts
-      query-users.ts
-      add-members.ts
-      update-channel.ts
-      remove-members.ts
-      ban-user.ts
-      unban-user.ts
-      delete-message.ts
-      flag-message.ts
-    video/
-      index.ts                   # registerVideoTools() — 16 tools
-      create-call.ts
-      get-call.ts
-      update-call.ts
-      end-call.ts
-      query-calls.ts
-      start-recording.ts
-      stop-recording.ts
-      list-recordings.ts
-      start-transcription.ts
-      stop-transcription.ts
-      list-transcriptions.ts
-      update-call-members.ts
-      query-call-members.ts
-      block-user.ts
-      unblock-user.ts
-      mute-users.ts
-  utils/
-    errors.ts                    # Stream API error formatting
-    format.ts                    # toolResult() / toolError() helpers
+## Layout
+
+```mermaid
+flowchart TD
+    subgraph src [src/]
+        IDX["index.ts<br/><i>stdio entrypoint</i>"]
+        SRV["server.ts<br/><i>builds a registered McpServer</i>"]
+        CFG["config.ts<br/><i>env parsing</i>"]
+        subgraph cl [clients/]
+            SC["stream-client.ts"]
+        end
+        subgraph sc [schemas/]
+            CM["common.ts"]
+            LG["languages.ts"]
+        end
+        subgraph tl [tools/]
+            DF["define.ts"]
+            RG["registry.ts"]
+            T1["chat/ · video/ · users/<br/>moderation/ · app/"]
+        end
+        subgraph ut [utils/]
+            ER["errors.ts"]
+            FM["format.ts"]
+        end
+    end
+    subgraph scripts [scripts/]
+        GD["generate-tool-docs.mjs"]
+        SM["smoke.mjs"]
+        PR["probe.mjs"]
+    end
+
+    IDX --> SRV --> RG --> DF
+    DF --> SC & ER & FM
+    T1 --> CM & LG
+    RG -.-> GD
+    CFG -.-> DF
 ```
 
-## Client Facade
+## Why tools are data
 
-`src/clients/stream-client.ts` provides a lazy singleton `StreamClient` from `@stream-io/node-sdk`:
+A `ToolDef` is a plain object: name, title, toolset, zod `inputSchema`,
+annotations, and a `handler` that builds one Stream request.
 
-- `getClient()` — initializes on first call, reads `STREAM_API_KEY` and `STREAM_API_SECRET` from env
-- `resetClient()` — for testing, clears the singleton
-- Single SDK for both chat and video: `client.chat.*`, `client.video.*`, `client.moderation.*`
-
-## Tool Registration
-
-Each tool is a standalone file that calls `server.registerTool()` directly:
-
-```
-server.registerTool("tool_name", {
-  description: "...",
-  inputSchema: { field: z.string().describe("...") },
-}, async ({ field }) => {
-  try {
-    const client = getClient();
-    const response = await client.chat.someMethod({ ... });
-    return toolResult(response);
-  } catch (error) {
-    return toolError(error);
-  }
+```ts
+defineTool({
+  name: "video_start_recording",
+  toolset: "video",
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
+  inputSchema: {
+    ...callRef,
+    recording_type: z.enum(["composite", "individual", "raw"]).optional(),
+  },
+  handler: async (args, client) =>
+    client.video.startRecording({ ...args, recording_type: args.recording_type ?? "composite" }),
 });
 ```
 
-- Zod schemas validate inputs and provide LLM-friendly descriptions
-- No wrapper abstraction — direct SDK calls for type safety
-- Every handler catches errors and returns `isError: true` with formatted messages
+`registerTool` supplies everything else: client lookup, the injected `verbose`
+parameter, error mapping, compaction, toolset and read-only gating, and
+deprecated aliases. Three consequences worth naming:
 
-## Error Handling
+- A tool module has no imperative surface to get wrong. The 0.1.0 code repeated
+  the same `getClient()` / `try` / `catch` block 29 times.
+- `ALL_TOOLS` is introspectable, so tests and the docs generator read the
+  registry directly instead of the MCP server's internals.
+- Adding a tool is one object. Forgetting to test it fails the build, because
+  `payloads.test.ts` asserts full coverage of the registry.
 
-Three layers:
+## Error handling
 
-1. **Zod validation** — MCP SDK validates inputs against schemas before the handler runs
-2. **Tool-level try/catch** — each handler catches SDK errors and returns `toolError(error)` from `src/utils/format.ts`
-3. **Process-level** — top-level catch in `src/index.ts`, logs to stderr
+```mermaid
+flowchart LR
+    A["bad field type"] --> Z["zod schema"] --> E1["isError: names the field"]
+    B["valid fields,<br/>impossible combination"] --> H["ToolInputError<br/><i>in the handler</i>"] --> E2["isError: 'Invalid input: …'"]
+    C["Stream rejects it"] --> S["StreamError"] --> E3["isError: HTTP status, code,<br/>hint, rate limit, request id"]
+```
 
-Stream API errors include HTTP status codes and are formatted as `Stream API Error (404): Not Found`.
+`StreamError` carries `code` and `metadata.{responseCode, rateLimit,
+clientRequestId}` — but **not** `status`. Reading `error.status` is why 0.1.0
+reported every failure as `Stream API Error (unknown)`.
 
-## Testing
+Common Stream codes are mapped to a one-line remediation hint so a model stops
+retrying something unretryable: `4` input error, `9` rate limited, `16` does
+not exist, `17` not allowed, `40` auth failed.
 
-- **Unit tests** (`npm test`) — mock `getClient()` with `vi.hoisted()` + `vi.mock()`, never hit real API
-- **Integration tests** (`npm run test:live`) — hit real Stream API, need `STREAM_API_KEY` and `STREAM_API_SECRET`
-- Tests access tool handlers via `server["_registeredTools"]["tool_name"]`
+## Configuration surface
+
+| Variable                        | Effect                                                                                    |
+| ------------------------------- | ----------------------------------------------------------------------------------------- |
+| `STREAM_MCP_TOOLSETS`           | Which groups register. Unknown names fail at startup rather than being ignored.           |
+| `STREAM_MCP_READ_ONLY`          | Registers only tools annotated `readOnlyHint` — the safe mode for production credentials. |
+| `STREAM_TIMEOUT_MS`             | Request timeout. Positive integers only; a fraction would floor to a 0 ms timeout.        |
+| `STREAM_MCP_MAX_RESPONSE_BYTES` | Backstop on one tool result, measured in UTF-8 bytes.                                     |
+| `STREAM_BASE_URL`               | Overrides the Stream API base URL.                                                        |
+
+Credentials are read lazily, so `tools/list` works before an app is configured
+and discovery never depends on valid keys.
+
+## Scripts
+
+| Script               | Purpose                                                                                          |
+| -------------------- | ------------------------------------------------------------------------------------------------ |
+| `npm run docs:tools` | Regenerates the tool reference from `ALL_TOOLS`. `docs:check` fails CI when it drifts.           |
+| `npm run smoke`      | Boots the built server over stdio and validates `tools/list` and both gating modes.              |
+| `npm run probe`      | Calls every read-only tool against a live app. Writes nothing, so it is safe against production. |

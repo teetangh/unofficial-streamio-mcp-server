@@ -1,24 +1,24 @@
 # Configuration
 
-## Environment Variables
+## Credentials
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `STREAM_API_KEY` | Yes | Stream application API key |
-| `STREAM_API_SECRET` | Yes | Stream application API secret |
+Create a Stream app at [dashboard.getstream.io](https://dashboard.getstream.io) and copy its **API key** and **secret**.
 
-Both are available from your [Stream Dashboard](https://dashboard.getstream.io).
+The secret is an admin credential for the whole app. Prefer a development app; see [Safety](#safety).
 
-## Claude Desktop
+## MCP client setup
 
-Edit `~/.claude/claude_desktop_config.json`:
+### Claude Desktop
+
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
   "mcpServers": {
     "stream-io": {
-      "command": "node",
-      "args": ["/absolute/path/to/build/index.js"],
+      "command": "npx",
+      "args": ["-y", "unofficial-streamio-mcp-server"],
       "env": {
         "STREAM_API_KEY": "your-api-key",
         "STREAM_API_SECRET": "your-api-secret"
@@ -28,44 +28,75 @@ Edit `~/.claude/claude_desktop_config.json`:
 }
 ```
 
-## Claude Code
+Restart Claude Desktop after editing.
 
-Add to your MCP settings:
+### Claude Code
+
+```bash
+claude mcp add stream-io \
+  -e STREAM_API_KEY=your-api-key \
+  -e STREAM_API_SECRET=your-api-secret \
+  -- npx -y unofficial-streamio-mcp-server
+```
+
+Or commit a `.mcp.json` with the same `mcpServers` block. Use `${STREAM_API_KEY}` interpolation rather than literal secrets in a file you might commit.
+
+### From a local checkout
 
 ```json
 {
   "mcpServers": {
     "stream-io": {
       "command": "node",
-      "args": ["/absolute/path/to/build/index.js"],
-      "env": {
-        "STREAM_API_KEY": "your-api-key",
-        "STREAM_API_SECRET": "your-api-secret"
-      }
+      "args": ["/absolute/path/to/unofficial-streamio-mcp-server/build/index.js"],
+      "env": { "STREAM_API_KEY": "…", "STREAM_API_SECRET": "…" }
     }
   }
 }
 ```
 
-## Running Standalone
+## Environment variables
 
-For testing or development:
+| Variable                        | Default | Purpose                           |
+| ------------------------------- | ------- | --------------------------------- |
+| `STREAM_API_KEY`                | —       | **Required.** Stream app key.     |
+| `STREAM_API_SECRET`             | —       | **Required.** Stream app secret.  |
+| `STREAM_MCP_TOOLSETS`           | `all`   | Which tool groups to register.    |
+| `STREAM_MCP_READ_ONLY`          | `false` | Register only read-only tools.    |
+| `STREAM_TIMEOUT_MS`             | `15000` | Request timeout in milliseconds.  |
+| `STREAM_MCP_MAX_RESPONSE_BYTES` | `30000` | Cap on one tool result.           |
+| `STREAM_BASE_URL`               | —       | Override the Stream API base URL. |
 
-```bash
-# Set env vars
-export STREAM_API_KEY=your-key
-export STREAM_API_SECRET=your-secret
+Invalid values fail fast with a message naming the variable.
 
-# Run the server
-npm start
+## Toolsets
+
+| Toolset       | Tools | Covers                                                               |
+| ------------- | ----- | -------------------------------------------------------------------- |
+| `chat`        | 35    | Channels, messages, threads, reactions, search, read state           |
+| `chat-admin`  | 6     | Channel types, exports                                               |
+| `users`       | 14    | User CRUD, tokens, guests, blocks, deactivation                      |
+| `moderation`  | 16    | Bans, mutes, flags, review queue, blocklists                         |
+| `video`       | 35    | Calls, members, participants, recording, transcription, broadcasting |
+| `video-admin` | 8     | Call types, reports, stats, edges                                    |
+| `app`         | 4     | App settings, rate limits, async tasks                               |
+
+```json
+"env": { "STREAM_MCP_TOOLSETS": "chat,users,moderation" }
 ```
 
-The server communicates over stdio using the MCP protocol.
+An unknown name fails at startup rather than being ignored.
 
-## Development
+## Safety
+
+`STREAM_MCP_READ_ONLY=true` registers only the tools annotated `readOnlyHint` — nothing that writes, deletes, bans or mints a token. Use it whenever the credentials belong to a production app.
+
+Destructive tools carry `destructiveHint: true`, so clients that gate on annotations can prompt before running them.
+
+## Local development
 
 ```bash
-npm run dev          # Watch mode — recompiles on changes
-npm test             # Unit tests (mocked, fast)
-npm run test:live    # Integration tests (real API, needs env vars)
+cp .env.example .env
 ```
+
+`.env` is read by the test suite (via `dotenv` in `src/__tests__/setup.ts`). The server itself reads only the process environment — MCP clients inject it from their config.
