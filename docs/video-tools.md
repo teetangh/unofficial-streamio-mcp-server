@@ -154,13 +154,14 @@ Search and filter the members of a call. Common filters: {role: {$eq: 'host'}}, 
 
 ### `video_query_call_participants` — read-only, idempotent
 
-List the users currently connected to a call's active session. Unlike members, participants are people actually in the call right now.
+List users connected to a call's active session, filtered by user ID or by which tracks they are publishing. Unlike members, participants are people actually in the call right now. Stream requires at least one filter, so pass `user_ids` and/or `published_tracks`.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
 | `call_id` | string | **yes** | Call ID |
-| `filter_conditions` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
+| `user_ids` | array | no | Restrict to these user IDs |
+| `published_tracks` | array | no | Restrict to participants publishing these track types |
 | `limit` | integer | no | Max results to return (default: 25, max: 100) |
 
 ### `video_block_user` — **destructive**, idempotent
@@ -431,7 +432,7 @@ List Stream's video edge servers and their current latency and health.
 
 ### `video_list_call_types` — read-only, idempotent
 
-List every call type on the app with its default settings and permission grants.
+List the app's call types with their headline settings. Returns a summary — use video_get_call_type for one type's full settings and permission grants.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |

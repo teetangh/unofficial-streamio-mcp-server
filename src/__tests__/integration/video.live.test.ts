@@ -161,7 +161,10 @@ suite("live: video", () => {
   });
 
   it("queries call participants", async () => {
-    const result = await harness.call("video_query_call_participants", call);
+    const result = await harness.call("video_query_call_participants", {
+      ...call,
+      user_ids: [host],
+    });
     expect(Array.isArray(result.participants)).toBe(true);
   });
 

@@ -10,6 +10,7 @@ import {
   sortParams,
 } from "../../schemas/common.js";
 import { ToolInputError } from "../../utils/errors.js";
+import { omit } from "../../utils/format.js";
 import { defineTool, type ToolDef } from "../define.js";
 
 const createChannel = defineTool({
@@ -139,6 +140,20 @@ const queryChannels = defineTool({
       .optional()
       .describe("Query as this user — applies their permissions and populates read/unread state"),
   },
+  // Keeps a page readable: per-channel read state and full member objects
+  // dominate the raw payload.
+  compact: (raw: { channels?: any[] }) => ({
+    channels: (raw.channels ?? []).map((entry) => ({
+      ...(omit(entry.channel, ["config"]) as object),
+      member_count: entry.channel?.member_count ?? entry.members?.length,
+      members: entry.members?.slice(0, 10).map((member: any) => ({
+        user_id: member.user_id,
+        channel_role: member.channel_role,
+      })),
+      message_count: entry.messages?.length,
+    })),
+    _hint: "Use chat_get_channel for one channel's messages and read state.",
+  }),
   handler: async (args, client) =>
     client.chat.queryChannels(
       defined({

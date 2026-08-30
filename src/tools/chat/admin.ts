@@ -7,7 +7,7 @@ const listChannelTypes = defineTool({
   title: "List channel types",
   toolset: "chat-admin",
   description:
-    "List every channel type configured on the app, with its permissions, commands and feature flags.",
+    "List the app's channel types with their key feature flags. Returns a summary — use chat_get_channel_type for one type's full configuration and permission grants.",
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -15,7 +15,26 @@ const listChannelTypes = defineTool({
     openWorldHint: true,
   },
   inputSchema: {},
-  compact: false,
+  // The full listing is ~44KB of config blobs; summarise it instead.
+  compact: (raw: { channel_types?: Record<string, any> }) => ({
+    channel_types: Object.values(raw.channel_types ?? {}).map((type) => ({
+      name: type.name,
+      typing_events: type.typing_events,
+      read_events: type.read_events,
+      replies: type.replies,
+      reactions: type.reactions,
+      uploads: type.uploads,
+      search: type.search,
+      mutes: type.mutes,
+      max_message_length: type.max_message_length,
+      message_retention: type.message_retention,
+      automod: type.automod,
+      automod_behavior: type.automod_behavior,
+      roles: Object.keys(type.grants ?? {}),
+      commands: type.commands,
+    })),
+    _hint: "Use chat_get_channel_type for one type's full settings and grants.",
+  }),
   handler: async (_args, client) => client.chat.listChannelTypes(),
 });
 

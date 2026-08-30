@@ -693,9 +693,14 @@ export const participantCases: ToolCase[] = [
   },
   {
     tool: "video_query_call_participants",
-    args: { ...CALL },
+    args: { ...CALL, user_ids: ["bob"] },
     path: "video.queryCallParticipants",
-    payload: { type: "default", id: "standup", limit: 25 },
+    payload: {
+      type: "default",
+      id: "standup",
+      filter_conditions: { user_id: { $in: ["bob"] } },
+      limit: 25,
+    },
   },
   {
     tool: "video_block_user",

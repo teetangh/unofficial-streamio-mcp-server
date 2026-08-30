@@ -14,7 +14,22 @@ const getAppSettings = defineTool({
     openWorldHint: true,
   },
   inputSchema: {},
-  compact: false,
+  // The raw payload embeds every channel and call type config (~55KB). Those
+  // have dedicated tools, so drop them and keep the app-level settings.
+  compact: (raw: { app?: Record<string, unknown> }) => {
+    const { channel_configs, call_types, policies, grants, ...app } = raw.app ?? {};
+    return {
+      app,
+      _omitted: {
+        channel_configs: Object.keys((channel_configs as object) ?? {}),
+        call_types: Object.keys((call_types as object) ?? {}),
+        policy_count: Array.isArray(policies) ? policies.length : undefined,
+        role_count: Object.keys((grants as object) ?? {}).length,
+      },
+      _hint:
+        "Use chat_get_channel_type / video_get_call_type for the omitted per-type configuration.",
+    };
+  },
   handler: async (_args, client) => client.getApp(),
 });
 
@@ -60,6 +75,27 @@ const getRateLimits = defineTool({
       .describe(
         "Comma-separated endpoint names to narrow the result, e.g. 'QueryChannels,SendMessage'"
       ),
+  },
+  // The app exposes ~230 endpoints; only the ones with consumed quota matter.
+  compact: (raw: Record<string, any>) => {
+    const summarise = (group: Record<string, any> | undefined) => {
+      if (!group) return undefined;
+      const used = Object.entries(group).filter(
+        ([, value]) => value?.remaining !== undefined && value.remaining < value.limit
+      );
+      return {
+        endpoint_count: Object.keys(group).length,
+        consumed: Object.fromEntries(used.slice(0, 40)),
+      };
+    };
+    return {
+      server_side: summarise(raw.server_side),
+      android: summarise(raw.android),
+      ios: summarise(raw.ios),
+      web: summarise(raw.web),
+      _hint:
+        "Only endpoints with consumed quota are listed. Pass `endpoints` to inspect specific ones, or verbose:true for all.",
+    };
   },
   handler: async (args, client) =>
     client.getRateLimits({

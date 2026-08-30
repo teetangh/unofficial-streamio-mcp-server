@@ -28,7 +28,8 @@
     "test": "vitest run --exclude 'src/__tests__/integration/**'",
     "test:watch": "vitest --exclude 'src/__tests__/integration/**'",
     "test:live": "vitest run --dir src/__tests__/integration",
-    "typecheck": "tsc --noEmit -p tsconfig.test.json"
+    "typecheck": "tsc --noEmit -p tsconfig.test.json",
+    "probe": "node scripts/probe.mjs"
   },
   "keywords": [
     "mcp",

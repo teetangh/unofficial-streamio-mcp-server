@@ -420,7 +420,7 @@ Fetch one thread by its parent message ID, with its replies and participants.
 
 ### `chat_list_channel_types` — read-only, idempotent
 
-List every channel type configured on the app, with its permissions, commands and feature flags.
+List the app's channel types with their key feature flags. Returns a summary — use chat_get_channel_type for one type's full configuration and permission grants.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |

@@ -114,6 +114,15 @@ npm run typecheck
 npm run docs:tools # regenerate docs/*-tools.md from the registry
 ```
 
+### Verifying credentials safely
+
+```bash
+STREAM_API_KEY=… STREAM_API_SECRET=… npm run probe
+```
+
+Calls every read-only tool against your app and reports what works. It writes
+nothing and creates nothing, so it is safe against a production app.
+
 ### Live tests
 
 `npm run test:live` drives every tool against a real Stream app through a real MCP client. It creates only `mcptest-*` fixtures and tears them down in `afterAll`.

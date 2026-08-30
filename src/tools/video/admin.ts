@@ -21,7 +21,8 @@ const listCallTypes = defineTool({
   name: "video_list_call_types",
   title: "List call types",
   toolset: "video-admin",
-  description: "List every call type on the app with its default settings and permission grants.",
+  description:
+    "List the app's call types with their headline settings. Returns a summary — use video_get_call_type for one type's full settings and permission grants.",
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -29,7 +30,22 @@ const listCallTypes = defineTool({
     openWorldHint: true,
   },
   inputSchema: {},
-  compact: false,
+  // The full listing is ~55KB of settings blobs; summarise it instead.
+  compact: (raw: { call_types?: Record<string, any> }) => ({
+    call_types: Object.values(raw.call_types ?? {}).map((type) => ({
+      name: type.name,
+      created_at: type.created_at,
+      updated_at: type.updated_at,
+      roles: Object.keys(type.grants ?? {}),
+      recording_mode: type.settings?.recording?.mode,
+      transcription_mode: type.settings?.transcription?.mode,
+      backstage_enabled: type.settings?.backstage?.enabled,
+      broadcasting_enabled: type.settings?.broadcasting?.enabled,
+      screensharing_enabled: type.settings?.screensharing?.enabled,
+      external_storage: type.external_storage,
+    })),
+    _hint: "Use video_get_call_type for one type's full settings and grants.",
+  }),
   handler: async (_args, client) => client.video.listCallTypes(),
 });
 

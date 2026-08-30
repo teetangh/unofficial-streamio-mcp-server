@@ -11,6 +11,7 @@ import {
   sortParams,
 } from "../../schemas/common.js";
 import { ToolInputError } from "../../utils/errors.js";
+import { omit } from "../../utils/format.js";
 import { defineTool, type ToolDef } from "../define.js";
 
 const settingsOverride = z
@@ -195,6 +196,20 @@ const queryCalls = defineTool({
     next: nextCursor,
     prev: prevCursor,
   },
+  // A raw page is mostly per-call `settings` blobs — ~12KB per call.
+  compact: (raw: { calls?: any[]; next?: string; prev?: string }) => ({
+    calls: (raw.calls ?? []).map((entry) => ({
+      ...(omit(entry.call, ["settings", "ingress", "egress", "thumbnails"]) as object),
+      member_count: entry.members?.length,
+      members: entry.members?.slice(0, 10).map((member: any) => ({
+        user_id: member.user_id,
+        role: member.role,
+      })),
+    })),
+    next: raw.next,
+    prev: raw.prev,
+    _hint: "Use video_get_call for one call's settings, ingress and egress.",
+  }),
   handler: async (args, client) =>
     client.video.queryCalls(
       defined({

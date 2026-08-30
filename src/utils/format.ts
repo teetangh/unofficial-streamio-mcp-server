@@ -77,6 +77,20 @@ export function serialize(data: unknown): string {
   );
 }
 
+/** Shallow-drops keys from an object, then shrinks what remains. */
+export function omit<T extends Record<string, unknown>>(
+  value: T | undefined,
+  keys: readonly string[]
+): unknown {
+  if (!value) return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (keys.includes(key)) continue;
+    out[key] = shrink(entry);
+  }
+  return out;
+}
+
 export function toolResult(data: unknown): CallToolResult {
   return { content: [{ type: "text", text: serialize(data) }] };
 }

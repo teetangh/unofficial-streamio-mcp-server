@@ -42,6 +42,7 @@ const REJECTIONS: [string, Record<string, unknown>, RegExp][] = [
     /`grant_permissions` or `revoke_permissions`/,
   ],
   ["video_update_call_type", { name: "webinar" }, /Nothing to update/],
+  ["video_query_call_participants", { ...CALL }, /`user_ids` and\/or `published_tracks`/],
   ["moderation_update_blocklist", { name: "custom" }, /Nothing to update/],
 ];
 

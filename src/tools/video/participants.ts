@@ -87,7 +87,7 @@ const queryCallParticipants = defineTool({
   title: "Query call participants",
   toolset: "video",
   description:
-    "List the users currently connected to a call's active session. Unlike members, participants are people actually in the call right now.",
+    "List users connected to a call's active session, filtered by user ID or by which tracks they are publishing. Unlike members, participants are people actually in the call right now. Stream requires at least one filter, so pass `user_ids` and/or `published_tracks`.",
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -96,18 +96,32 @@ const queryCallParticipants = defineTool({
   },
   inputSchema: {
     ...callRef,
-    filter_conditions: filterConditions,
+    // Stream only supports `user_id` and `published_tracks` here, each with
+    // $eq/$in, and rejects an empty filter — so expose exactly those.
+    user_ids: z.array(z.string().min(1)).min(1).optional().describe("Restrict to these user IDs"),
+    published_tracks: z
+      .array(z.enum(["audio", "video", "screen_share", "screen_share_audio"]))
+      .min(1)
+      .optional()
+      .describe("Restrict to participants publishing these track types"),
     limit: limit(100, 25),
   },
-  handler: async (args, client) =>
-    client.video.queryCallParticipants(
-      defined({
-        type: args.call_type,
-        id: args.call_id,
-        filter_conditions: args.filter_conditions,
-        limit: args.limit ?? 25,
-      })
-    ),
+  handler: async (args, client) => {
+    if (args.user_ids === undefined && args.published_tracks === undefined) {
+      throw new ToolInputError(
+        "Stream requires at least one filter — pass `user_ids` and/or `published_tracks`."
+      );
+    }
+    return client.video.queryCallParticipants({
+      type: args.call_type,
+      id: args.call_id,
+      filter_conditions: defined({
+        user_id: args.user_ids ? { $in: args.user_ids } : undefined,
+        published_tracks: args.published_tracks ? { $in: args.published_tracks } : undefined,
+      }),
+      limit: args.limit ?? 25,
+    });
+  },
 });
 
 const blockUser = defineTool({
