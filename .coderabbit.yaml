@@ -1,0 +1,55 @@
+# CodeRabbit review configuration.
+#
+# Keeps the review budget on real source. CodeRabbit caps reviews at 100
+# changed files and skips the review entirely when too many are dropped, so
+# files that carry no review value are filtered out here rather than eating
+# into that budget.
+reviews:
+  path_filters:
+    # Machine-generated.
+    - "!package-lock.json"
+    # Generated from the tool registry by `npm run docs:tools`. CI fails if
+    # they drift from the code, so reviewing them adds nothing.
+    - "!docs/chat-tools.md"
+    - "!docs/video-tools.md"
+    # Superseded by the grouped test modules in src/__tests__/tools/. These
+    # directories only ever shrink, and a review of a deleted file is noise.
+    - "!src/__tests__/tools/chat/**"
+    - "!src/__tests__/tools/video/**"
+
+  path_instructions:
+    - path: "src/tools/**/*.ts"
+      instructions: >
+        Each tool is a declarative ToolDef: a zod `inputSchema` plus a
+        `handler` that builds one Stream API request.
+
+        Check the request against Stream's server-side API for that endpoint:
+        correct field names, required fields present, and path / query / body
+        parameters in the right position. Flag any parameter the schema
+        accepts but the handler silently drops before the SDK call, and any
+        default documented in a `.describe()` string that the handler does not
+        actually apply — both classes of bug shipped in 0.1.0.
+
+        Annotations are load-bearing: `readOnlyHint` gates whether a tool is
+        registered under STREAM_MCP_READ_ONLY, so a write operation marked
+        read-only is a security issue, not a cosmetic one.
+
+    - path: "src/schemas/**/*.ts"
+      instructions: >
+        Shared zod fragments used across many tools. Flag limits, enums or
+        caps that disagree with Stream's documented values, since a mismatch
+        here turns a clear validation error into an opaque API 400.
+
+    - path: "src/utils/**/*.ts"
+      instructions: >
+        Response compaction and error formatting run on every tool result.
+        Flag anything that could drop a field a caller needs, or that assumes
+        a response shape without guarding for it being absent.
+
+    - path: "src/__tests__/**/*.ts"
+      instructions: >
+        Tests must not reach into MCP SDK internals such as
+        `server["_registeredTools"]`; schema validation is exercised through a
+        real client over InMemoryTransport. Payload tests assert the exact
+        request a tool builds, so flag assertions loose enough to pass with a
+        wrong field name.
