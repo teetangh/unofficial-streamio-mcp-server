@@ -42,8 +42,8 @@ const createCall = defineTool({
       .max(100)
       .optional()
       .describe("Initial members — user IDs or {user_id, role} objects"),
-    starts_at: z
-      .string()
+    starts_at: z.iso
+      .datetime({ offset: true })
       .optional()
       .describe("ISO-8601 scheduled start time, e.g. '2026-09-01T15:00:00Z'"),
     team: z.string().optional().describe("Team the call belongs to (multi-tenant apps)"),
@@ -66,7 +66,7 @@ const createCall = defineTool({
         data: defined({
           created_by_id: args.created_by_id,
           team: args.team,
-          starts_at: args.starts_at ? new Date(args.starts_at) : undefined,
+          starts_at: args.starts_at === undefined ? undefined : new Date(args.starts_at),
           members,
           custom: args.custom,
           settings_override: args.settings_override,
@@ -118,7 +118,10 @@ const updateCall = defineTool({
     ...callRef,
     settings_override: settingsOverride,
     custom: customData,
-    starts_at: z.string().optional().describe("ISO-8601 scheduled start time"),
+    starts_at: z.iso
+      .datetime({ offset: true })
+      .optional()
+      .describe("ISO-8601 scheduled start time, e.g. '2026-09-01T15:00:00Z'"),
   },
   handler: async (args, client) => {
     if (
@@ -136,7 +139,7 @@ const updateCall = defineTool({
       ...defined({
         settings_override: args.settings_override,
         custom: args.custom,
-        starts_at: args.starts_at ? new Date(args.starts_at) : undefined,
+        starts_at: args.starts_at === undefined ? undefined : new Date(args.starts_at),
       }),
     });
   },

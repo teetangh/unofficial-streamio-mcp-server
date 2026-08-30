@@ -43,7 +43,7 @@ Update a call's settings, custom data or scheduled start time. Settings are merg
 | `call_id` | string | **yes** | Call ID |
 | `settings_override` | object | no | Call settings to override, e.g. {recording: {mode: 'available', quality: '1080p'}, audio: {mic_default_on: true}, backstage: {enabled: true}, screensharing: {enabled: false}} |
 | `custom` | object | no | Custom key/value data stored on the object |
-| `starts_at` | string | no | ISO-8601 scheduled start time |
+| `starts_at` | string | no | ISO-8601 scheduled start time, e.g. '2026-09-01T15:00:00Z' |
 
 ### `video_end_call` — **destructive**, idempotent
 

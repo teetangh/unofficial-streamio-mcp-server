@@ -85,6 +85,43 @@ describe("MCP server", () => {
     await client.close();
   });
 
+  it("rejects a malformed datetime before building a request", async () => {
+    const { client } = await connect();
+
+    const result = await client.callTool({
+      name: "video_create_call",
+      arguments: {
+        call_type: "default",
+        call_id: "c1",
+        created_by_id: "alice",
+        starts_at: "not-a-date",
+      },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toMatch(/starts_at/);
+    await client.close();
+  });
+
+  it("rejects an empty datetime rather than silently dropping it", async () => {
+    const { client } = await connect();
+
+    // Empty text used to pass the schema, fail the truthiness check, and be
+    // removed by `defined` — so the caller's intent vanished without an error.
+    const result = await client.callTool({
+      name: "video_create_call",
+      arguments: {
+        call_type: "default",
+        call_id: "c1",
+        created_by_id: "alice",
+        starts_at: "",
+      },
+    });
+
+    expect(result.isError).toBe(true);
+    await client.close();
+  });
+
   it("rejects a limit above the documented cap", async () => {
     const { client } = await connect();
 
