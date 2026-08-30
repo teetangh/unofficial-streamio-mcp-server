@@ -70,3 +70,29 @@ describe("formatErrorMessage", () => {
     expect(formatErrorMessage(null)).toBe("null");
   });
 });
+
+describe("not-found hints", () => {
+  it('replaces "Create it first" when a tool reads something uncreatable', () => {
+    const error = Object.assign(new Error("call report data expired"), {
+      code: 16,
+      metadata: { responseCode: 404 },
+    });
+
+    const generic = formatErrorMessage(error);
+    expect(generic).toContain("Create it first");
+
+    const scoped = formatErrorMessage(error, "Reports are derived from call activity.");
+    expect(scoped).toContain("Reports are derived from call activity.");
+    expect(scoped).not.toContain("Create it first");
+    // Stream's own wording still leads — it is what distinguishes an expired
+    // report from a session that never existed.
+    expect(scoped.indexOf("call report data expired")).toBeLessThan(
+      scoped.indexOf("Reports are derived")
+    );
+  });
+
+  it("leaves other codes alone", () => {
+    const error = Object.assign(new Error("nope"), { code: 17, metadata: { responseCode: 403 } });
+    expect(formatErrorMessage(error, "not used here")).toContain("Not allowed");
+  });
+});

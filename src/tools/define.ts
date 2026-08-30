@@ -46,9 +46,24 @@ export interface ToolDef<S extends z.ZodRawShape = z.ZodRawShape, R = unknown> {
    * - function: a bespoke projection
    * - `false`: return the response untouched (for tools whose payload *is*
    *   the config blob the shrinker would otherwise drop)
+   *
+   * A projection also receives the call's arguments, because what is worth
+   * keeping can depend on what the caller asked for: `app_get_rate_limits`
+   * filters to consumed quota by default, but must return every endpoint the
+   * caller named.
    */
-  compact?: ((raw: R) => unknown) | false;
-  /** Deprecated names kept working for one minor release. */
+  compact?: ((raw: R, args: ToolArgs<S>) => unknown) | false;
+  /**
+   * Replaces the generic "Create it first" hint on a Stream 404. Set it on
+   * tools that read a resource nobody can create — call reports and call
+   * stats are derived from call activity.
+   */
+  notFoundHint?: string;
+  /**
+   * Deprecated names kept working for one more minor release. The removal
+   * version is stated in the notice `registerTool` prepends — move both
+   * together, and only in the release that actually removes them.
+   */
   aliases?: string[];
 }
 
@@ -77,14 +92,20 @@ export function defineTool<S extends z.ZodRawShape, R>(def: ToolDef<S, R>): Tool
   return def;
 }
 
-function applyCompaction<S extends z.ZodRawShape, R>(
+/**
+ * Exported for the compaction tests: a projection has to be exercised through
+ * the same path the server uses, or the `verbose` and default-`shrink`
+ * branches — the two that made `verbose:true` look like a no-op — go untested.
+ */
+export function applyCompaction<S extends z.ZodRawShape, R>(
   def: ToolDef<S, R>,
   raw: R,
-  verbose: boolean
+  verbose: boolean,
+  args: ToolArgs<S> = {} as ToolArgs<S>
 ): unknown {
   if (verbose) return raw;
   if (def.compact === false) return raw;
-  if (typeof def.compact === "function") return def.compact(raw);
+  if (typeof def.compact === "function") return def.compact(raw, args);
   return shrink(raw);
 }
 
@@ -118,17 +139,17 @@ export function registerTool<S extends z.ZodRawShape, R>(
         const { verbose = false } = args;
         const client = getClient();
         const raw = await def.handler(args, client);
-        const payload = applyCompaction(def, raw, verbose);
+        const payload = applyCompaction(def, raw, verbose, args);
         const result = toolResult(payload);
         if (deprecatedAs) {
           result.content.unshift({
             type: "text",
-            text: `Note: "${deprecatedAs}" is deprecated and will be removed in 0.3.0. Use "${def.name}".`,
+            text: `Note: "${deprecatedAs}" is deprecated and will be removed in 0.4.0. Use "${def.name}".`,
           });
         }
         return result;
       } catch (error) {
-        return toolError(error);
+        return toolError(error, def.notFoundHint);
       }
     };
 

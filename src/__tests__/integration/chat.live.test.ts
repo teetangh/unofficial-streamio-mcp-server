@@ -43,6 +43,29 @@ suite("live: chat", () => {
       filter_conditions: { id: { $in: [alice, bob] } },
     });
     expect(result.users).toHaveLength(2);
+    // The projection is what lets a page of 100 come back whole.
+    expect(result.users[0].id).toBeDefined();
+    expect(Array.isArray(result.users[0].flags)).toBe(true);
+    expect(result.users[0].devices).toBeUndefined();
+    expect(result.users[0].unread_count).toBeUndefined();
+  });
+
+  it("finds deactivated users by scanning, since Stream cannot filter them", async () => {
+    await harness.call("users_deactivate", { user_id: bob });
+    try {
+      const result = await harness.call("chat_query_users", {
+        deactivated_only: true,
+        limit: 100,
+      });
+      const found = result.users.find((user: { id: string }) => user.id === bob);
+      expect(found?.deactivated_at).toBeDefined();
+      expect(result.users.every((user: { deactivated_at?: string }) => user.deactivated_at)).toBe(
+        true
+      );
+      expect(result.scan.scanned).toBeGreaterThanOrEqual(result.users.length);
+    } finally {
+      await harness.call("users_reactivate", { user_id: bob });
+    }
   });
 
   it("creates a channel with a name", async () => {
@@ -179,6 +202,33 @@ suite("live: chat", () => {
       filter_conditions: { cid: `messaging:${channelId}` },
     });
     expect(result.channels).toHaveLength(1);
+
+    const [row] = result.channels;
+    expect(row.cid).toBe(`messaging:${channelId}`);
+    // The two constants that used to spend the budget a row at a time.
+    expect(row.own_capabilities).toBeUndefined();
+    expect(row.config).toBeUndefined();
+    expect(Array.isArray(row.member_ids)).toBe(true);
+    // Never a count derived from the returned rows: with the default
+    // message_limit of 0 that read as 0 on a channel that has messages.
+    expect(row.messages_returned).toBeUndefined();
+    if (row.message_count !== undefined) expect(typeof row.message_count).toBe("number");
+  });
+
+  it("reads a channel without being able to create one", async () => {
+    // The tool is annotated readOnlyHint, so an unknown id must 404 rather
+    // than mint the channel the caller was only asking about.
+    const ghost = fixtureId("ghost");
+    const error = await harness.callExpectingError("chat_get_channel", {
+      channel_type: "messaging",
+      channel_id: ghost,
+    });
+    expect(error).toMatch(/exist|not found/i);
+
+    const after = await harness.call("chat_query_channels", {
+      filter_conditions: { cid: `messaging:${ghost}` },
+    });
+    expect(after.channels).toHaveLength(0);
   });
 
   it("queries channel members", async () => {
@@ -320,8 +370,24 @@ suite("live: chat", () => {
   });
 
   it("truncates the channel", async () => {
-    await harness.call("chat_truncate_channel", { ...channel, user_id: alice });
+    // `system_message` needs an author; Stream 400s without one, and its error
+    // says only "either user or user_id must be provided".
+    const missingAuthor = await harness.callExpectingError("chat_truncate_channel", {
+      ...channel,
+      system_message: "History cleared",
+    });
+    expect(missingAuthor).toMatch(/`system_message` is posted by a user/);
+
+    await harness.call("chat_truncate_channel", {
+      ...channel,
+      user_id: alice,
+      system_message: "History cleared",
+    });
     const after = await harness.call("chat_get_channel", channel);
-    expect(after.messages).toHaveLength(0);
+    // Everything is gone except the system message the truncation posted,
+    // which is also the proof that `user_id` reached Stream as its author.
+    expect(after.messages).toHaveLength(1);
+    expect(after.messages[0].type).toBe("system");
+    expect(after.messages[0].text).toBe("History cleared");
   });
 });

@@ -52,7 +52,17 @@ const CODE_HINTS: Record<number, string> = {
   40: "Authentication failed — check STREAM_API_KEY and STREAM_API_SECRET.",
 };
 
-export function formatErrorMessage(error: unknown): string {
+/** The Stream code for "not found", the only hint a tool may override. */
+const NOT_FOUND = 16;
+
+/**
+ * @param notFoundHint - replaces the generic code-16 hint. "Create it first"
+ *   is wrong for resources nobody can create — a call report is derived from
+ *   call activity — and it pushes attention away from Stream's own message,
+ *   which is the part that distinguishes an expired retention window from a
+ *   session that never existed.
+ */
+export function formatErrorMessage(error: unknown, notFoundHint?: string): string {
   if (error instanceof ToolInputError) {
     return `Invalid input: ${error.message}`;
   }
@@ -73,8 +83,14 @@ export function formatErrorMessage(error: unknown): string {
       descriptor ? `Stream API error (${descriptor}): ${message}` : `Stream API error: ${message}`
     );
 
-    if (code !== undefined && CODE_HINTS[code]) {
-      parts.push(CODE_HINTS[code]);
+    const hint =
+      code === NOT_FOUND && notFoundHint
+        ? notFoundHint
+        : code !== undefined
+          ? CODE_HINTS[code]
+          : undefined;
+    if (hint) {
+      parts.push(hint);
     }
 
     const rateLimit = metadata?.rateLimit;

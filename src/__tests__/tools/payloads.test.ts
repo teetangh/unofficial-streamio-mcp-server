@@ -33,6 +33,39 @@ describe("tool → SDK payloads", () => {
     expect(uncovered).toEqual([]);
   });
 
+  it("chat_get_channel proves the channel exists before it can page", async () => {
+    // The create-or-query endpoint creates a channel on an unknown id, which
+    // is why paging has to be preceded by a read that 404s instead.
+    const mock = mockClient();
+    await callTool(
+      "chat_get_channel",
+      { channel_type: "messaging", channel_id: "general", before_message_id: "m1" },
+      mock.client
+    );
+
+    expect(mock.calls).toEqual([
+      {
+        path: "apiClient.sendRequest",
+        args: [
+          "GET",
+          "/api/v2/chat/channels/{type}/{id}",
+          { type: "messaging", id: "general" },
+          { payload: JSON.stringify({ state: true, messages_limit: 25, members_limit: 30 }) },
+        ],
+      },
+      {
+        path: "chat.getOrCreateChannel",
+        args: {
+          type: "messaging",
+          id: "general",
+          state: true,
+          messages: { limit: 25, id_lt: "m1" },
+          members: { limit: 30 },
+        },
+      },
+    ]);
+  });
+
   it("resolves video.call(type, id) before invoking the call API", async () => {
     const mock = mockClient();
     await callTool(

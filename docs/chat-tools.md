@@ -87,7 +87,7 @@ Partially update a channel's data. `set` adds or overwrites fields (e.g. {name: 
 
 ### `chat_get_channel` — read-only, idempotent
 
-Fetch a channel's state: its data, members, and most recent messages. This is the primary way to READ chat history. Page backwards through history with `before_message_id` (pass the oldest message id you already have).
+Fetch a channel's state: its data, members, and most recent messages. This is the primary way to READ chat history. Page backwards through history with `before_message_id` (pass the oldest message id you already have). Strictly a read: an unknown channel id returns a 404 rather than creating the channel — use chat_create_channel for that.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -110,7 +110,7 @@ Delete a channel. Soft delete by default (recoverable, id stays taken). `hard_de
 
 ### `chat_truncate_channel` — **destructive**, idempotent
 
-Remove all messages from a channel while keeping the channel and its members. Optionally post a system message explaining the truncation.
+Remove all messages from a channel while keeping the channel and its members. Optionally post a system message explaining the truncation — that message needs an author, so `user_id` is required with it. `truncated_at` must be later than any previous truncation of the same channel.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -119,7 +119,7 @@ Remove all messages from a channel while keeping the channel and its members. Op
 | `user_id` | string | no | Acting user ID |
 | `hard_delete` | boolean | no | Permanently remove messages rather than soft-deleting |
 | `truncated_at` | string | no | ISO-8601 timestamp — only truncate messages older than this |
-| `system_message` | string | no | System message to post after truncating |
+| `system_message` | string | no | System message to post after truncating. Requires `user_id` — it is its author. |
 
 ### `chat_query_members` — read-only, idempotent
 
@@ -512,7 +512,7 @@ Deprecated aliases: `users_upsert`
 
 ### `chat_query_users` — read-only, idempotent
 
-Search and filter users. Common filters: {id: {$in: ['alice','bob']}}, {role: {$eq: 'admin'}}, {name: {$autocomplete: 'ali'}}, {banned: true}, {last_active: {$gt: '2026-08-01T00:00:00Z'}}.
+Search and filter users. Common filters: {id: {$in: ['alice','bob']}}, {role: {$eq: 'admin'}}, {name: {$autocomplete: 'ali'}}, {banned: true}, {last_active: {$gt: '2026-08-01T00:00:00Z'}}. Stream rejects any operator on `deactivated_at`, so pass `deactivated_only: true` to enumerate deactivated users.
 
 Deprecated aliases: `users_query`
 
@@ -523,7 +523,9 @@ Deprecated aliases: `users_query`
 | `limit` | integer | no | Max results to return (default: 10, max: 100) |
 | `offset` | integer | no | Number of results to skip (max: 1000) |
 | `presence` | boolean | no | Include online/presence state |
-| `include_deactivated_users` | boolean | no | Include deactivated users |
+| `include_deactivated_users` | boolean | no | Include deactivated users alongside active ones. It cannot isolate them — use `deactivated_only` for that. |
+| `deactivated_only` | boolean | no | Return only deactivated users. Stream cannot filter on `deactivated_at`, so this SCANS: it pages the app by ascending user id (up to 25 pages of 100) and keeps the deactivated rows. The `scan` block in the response reports how many users were examined and, if the budget ran out, the `next_id` to resume from via `after_id`. Cannot be combined with `offset` or `sort`. |
+| `after_id` | string | no | Resume a `deactivated_only` scan from this user id (the previous `scan.next_id`) |
 
 ### `users_update_partial` — idempotent
 

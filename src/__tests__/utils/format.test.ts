@@ -1,5 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { bounded, serialize, shrink, toolError, toolResult } from "../../utils/format.js";
+import {
+  bounded,
+  pick,
+  serialize,
+  shrink,
+  summarizeRecord,
+  toolError,
+  toolResult,
+  userRef,
+} from "../../utils/format.js";
 
 afterEach(() => {
   delete process.env.STREAM_MCP_MAX_RESPONSE_BYTES;
@@ -99,6 +108,81 @@ describe("serialize", () => {
 
     expect(text).toContain("[TRUNCATED:");
     expect(Buffer.byteLength(text, "utf8")).toBeLessThanOrEqual(200);
+  });
+});
+
+describe("serialize under pressure", () => {
+  it("drops indentation before it drops rows", () => {
+    process.env.STREAM_MCP_MAX_RESPONSE_BYTES = "900";
+    const items = Array.from({ length: 20 }, (_, index) => ({
+      id: `row-${index}`,
+      name: `Row ${index}`,
+    }));
+    const text = serialize({ items });
+
+    // Whitespace is boilerplate; a row is data. Shed the boilerplate first.
+    expect(text).not.toContain("\n");
+    expect(text).not.toContain("_omitted_items");
+    expect(JSON.parse(text).items).toHaveLength(20);
+  });
+
+  it("keeps the largest prefix that fits rather than halving", () => {
+    process.env.STREAM_MCP_MAX_RESPONSE_BYTES = "700";
+    const items = Array.from({ length: 60 }, (_, index) => ({ id: `row-${index}` }));
+    const parsed = JSON.parse(serialize({ items }));
+
+    // Repeated halving landed on 15 of 60 here, and 7 of 30 on a real page.
+    expect(parsed.items.length).toBeGreaterThan(20);
+    expect(parsed._omitted_items).toBe(60 - parsed.items.length);
+    expect(parsed._hint).toContain("were dropped");
+  });
+
+  it("keeps a projection's own hint in front of the truncation notice", () => {
+    process.env.STREAM_MCP_MAX_RESPONSE_BYTES = "700";
+    const items = Array.from({ length: 60 }, (_, index) => ({ id: `row-${index}` }));
+    const parsed = JSON.parse(serialize({ items, _hint: "Use chat_get_channel for one channel." }));
+
+    expect(parsed._hint).toContain("Use chat_get_channel for one channel.");
+    expect(parsed._hint).toContain("were dropped");
+  });
+
+  it("returns parseable JSON when it has to drop rows", () => {
+    process.env.STREAM_MCP_MAX_RESPONSE_BYTES = "400";
+    const items = Array.from({ length: 40 }, (_, index) => ({ id: `row-${index}` }));
+    expect(() => JSON.parse(serialize({ items }))).not.toThrow();
+  });
+
+  it("keeps a parseable envelope when not even one row fits", () => {
+    process.env.STREAM_MCP_MAX_RESPONSE_BYTES = "300";
+    const items = Array.from({ length: 5 }, () => ({ blob: "x".repeat(400) }));
+    const parsed = JSON.parse(serialize({ items }));
+
+    expect(parsed.items).toEqual([]);
+    expect(parsed._omitted_items).toBe(5);
+  });
+});
+
+describe("projection helpers", () => {
+  it("pick keeps only the named keys and skips absent ones", () => {
+    expect(pick({ id: "a", name: "A", secret: 1 }, ["id", "name", "missing"] as never)).toEqual({
+      id: "a",
+      name: "A",
+    });
+    expect(pick(undefined, ["id"] as never)).toBeUndefined();
+  });
+
+  it("userRef reduces a user to a reference", () => {
+    expect(userRef({ id: "alice", name: "Alice" })).toEqual({ id: "alice", name: "Alice" });
+    expect(userRef({ id: "alice" })).toEqual({ id: "alice" });
+    expect(userRef(undefined)).toBeUndefined();
+  });
+
+  it("summarizeRecord lists small key sets and counts large ones", () => {
+    expect(summarizeRecord({ a: 1, b: 2 })).toEqual({ count: 2, keys: ["a", "b"] });
+    expect(
+      summarizeRecord(Object.fromEntries(Array.from({ length: 55 }, (_, i) => [`k${i}`, i])))
+    ).toEqual({ count: 55 });
+    expect(summarizeRecord(undefined)).toBeUndefined();
   });
 });
 
