@@ -5,6 +5,51 @@
 
 ## [0.3.0](https://github.com/teetangh/unofficial-streamio-mcp-server/compare/v0.2.1...v0.3.0) (2026-08-30)
 
+Closes the ten issues filed against 0.2.1, all one shape: the response a caller
+got was not the response the tool described.
+
+**`chat_get_channel` no longer creates a channel.** It was annotated
+`readOnlyHint` while posting to Stream's create-or-query endpoint, so it
+registered under `STREAM_MCP_READ_ONLY` and could mint the phantom channels it
+was being used to audit. It reads through `GET /chat/channels/{type}/{id}` now,
+which 404s on an unknown id, and only falls through to create-or-query in order
+to page — after that read has proved the channel exists.
+
+**List tools return whole pages.** The 30 KB budget was being spent on per-row
+boilerplate: 33 identical `own_capabilities` strings and a fully expanded
+`created_by` on every channel, devices and unread counters on every user.
+Explicit projections keep identity and the fields you can filter and sort on.
+Measured against the same data: `chat_query_channels` went from 14 of 28 rows to
+28 of 28, `chat_query_users` from 48 of 97 to 97 of 97. `video_get_call_type`
+went from 20.4 KB to 9.2 KB while keeping every permission grant, and
+`video_query_call_participants` from 8.8 KB to 459 B. When a response still
+exceeds the cap, indentation is dropped before any data is, and then the largest
+prefix that fits is kept rather than repeatedly halving.
+
+**Enumerating deactivated users is possible.** Stream rejects every operator on
+`deactivated_at`, so `chat_query_users` gains `deactivated_only`: a bounded
+keyset scan by ascending id, reporting what it examined and a cursor to resume.
+
+**Descriptions match the API.** `app_get_rate_limits` returns endpoints you name
+whether or not their quota is used, and reports names Stream did not recognise.
+The Stream code 16 hint no longer says "Create it first" for call reports and
+call stats, which nobody can create. `video_query_call_stats` documents the
+`$and` time-range form Stream actually accepts, `video_go_live` documents the
+backstage precondition, and `chat_truncate_channel` refuses a `system_message`
+with no author rather than letting Stream reject it.
+
+**Response shapes changed.** `chat_query_channels` no longer returns
+`own_capabilities`, per-member roles, or a `message_count` derived from the
+returned rows — that value was always `0` under the default `message_limit`,
+including on channels that demonstrably had messages. Stream's own
+`message_count` is passed through when it provides one, and the page-local count
+is `messages_returned`. `chat_query_users` drops devices, mutes, unread counters
+and privacy settings, and reports `banned`/`shadow_banned`/`invisible`/`online`
+as a `flags` array. `verbose: true` still returns the raw Stream payload on every
+tool.
+
+The deprecated 0.1.0 aliases were due for removal here; they stay one more minor
+and now say 0.4.0.
 
 ### Features
 
