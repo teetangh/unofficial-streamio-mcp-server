@@ -1,116 +1,82 @@
 # Architecture
 
-The high-level picture, the request path and the compaction rules are in the
-[README](../README.md#architecture). This page covers the layout and the
-decisions behind it.
-
 ## Layout
 
-```mermaid
-flowchart TD
-    subgraph src [src/]
-        IDX["index.ts<br/><i>stdio entrypoint</i>"]
-        SRV["server.ts<br/><i>builds a registered McpServer</i>"]
-        CFG["config.ts<br/><i>env parsing</i>"]
-        subgraph cl [clients/]
-            SC["stream-client.ts"]
-        end
-        subgraph sc [schemas/]
-            CM["common.ts"]
-            LG["languages.ts"]
-        end
-        subgraph tl [tools/]
-            DF["define.ts"]
-            RG["registry.ts"]
-            T1["chat/ · video/ · users/<br/>moderation/ · app/"]
-        end
-        subgraph ut [utils/]
-            ER["errors.ts"]
-            FM["format.ts"]
-        end
-    end
-    subgraph scripts [scripts/]
-        GD["generate-tool-docs.mjs"]
-        SM["smoke.mjs"]
-        PR["probe.mjs"]
-    end
-
-    IDX --> SRV --> RG --> DF
-    DF --> SC & ER & FM
-    T1 --> CM & LG
-    RG -.-> GD
-    CFG -.-> DF
+```
+src/
+  index.ts               # stdio entrypoint: transport, signals, fatal handlers
+  server.ts              # builds a registered McpServer (shared with tests)
+  config.ts              # environment parsing: toolsets, timeouts, caps
+  clients/
+    stream-client.ts     # lazy StreamClient singleton
+  schemas/
+    common.ts            # shared zod fragments (channelRef, callRef, sort, limits)
+  tools/
+    define.ts            # ToolDef type + registerTool: the only place cross-cutting
+                         #   behaviour lives (client lookup, errors, compaction, gating)
+    registry.ts          # ALL_TOOLS — the flat, introspectable list
+    chat/                # channels.ts, messages.ts, admin.ts
+    video/               # calls.ts, participants.ts, media.ts, admin.ts
+    users/               # users.ts, tokens.ts
+    moderation/          # moderation.ts, blocklists.ts
+    app/                 # app.ts
+  utils/
+    errors.ts            # StreamError → actionable text; ToolInputError
+    format.ts            # response compaction, byte cap, MCP result wrappers
+scripts/
+  generate-tool-docs.mjs # docs/*-tools.md from the registry
+  smoke.mjs              # boots the built server over stdio, validates tools/list
 ```
 
-## Why tools are data
+## Tools are data, not functions
 
-A `ToolDef` is a plain object: name, title, toolset, zod `inputSchema`,
-annotations, and a `handler` that builds one Stream request.
+A tool is a `ToolDef` object:
 
 ```ts
 defineTool({
   name: "video_start_recording",
+  title: "Start recording",
   toolset: "video",
-  annotations: {
-    readOnlyHint: false,
-    destructiveHint: false,
-    idempotentHint: true,
-    openWorldHint: true,
-  },
-  inputSchema: {
-    ...callRef,
-    recording_type: z.enum(["composite", "individual", "raw"]).optional(),
-  },
-  handler: async (args, client) =>
-    client.video.startRecording({ ...args, recording_type: args.recording_type ?? "composite" }),
+  description: "…",
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  inputSchema: { ...callRef, recording_type: z.enum(["composite", "individual", "raw"]).optional() },
+  handler: async (args, client) => client.video.startRecording({ … }),
 });
 ```
 
-`registerTool` supplies everything else: client lookup, the injected `verbose`
-parameter, error mapping, compaction, toolset and read-only gating, and
-deprecated aliases. Three consequences worth naming:
+`registerTool` in `src/tools/define.ts` is the single place that:
 
-- A tool module has no imperative surface to get wrong. The 0.1.0 code repeated
-  the same `getClient()` / `try` / `catch` block 29 times.
-- `ALL_TOOLS` is introspectable, so tests and the docs generator read the
-  registry directly instead of the MCP server's internals.
-- Adding a tool is one object. Forgetting to test it fails the build, because
-  `payloads.test.ts` asserts full coverage of the registry.
+- resolves the `StreamClient` (so handlers never import it),
+- injects the `verbose` parameter into every schema,
+- converts thrown errors into `isError` tool results via `formatErrorMessage`,
+- applies response compaction unless `verbose` or `compact: false`,
+- skips tools outside `STREAM_MCP_TOOLSETS`, or non-read-only tools under `STREAM_MCP_READ_ONLY`,
+- registers deprecated aliases with a deprecation notice prepended to the result.
+
+The payoff is that a tool module contains only its schema and the request it builds — which is exactly what the tests assert.
 
 ## Error handling
 
-```mermaid
-flowchart LR
-    A["bad field type"] --> Z["zod schema"] --> E1["isError: names the field"]
-    B["valid fields,<br/>impossible combination"] --> H["ToolInputError<br/><i>in the handler</i>"] --> E2["isError: 'Invalid input: …'"]
-    C["Stream rejects it"] --> S["StreamError"] --> E3["isError: HTTP status, code,<br/>hint, rate limit, request id"]
-```
+Three layers:
 
-`StreamError` carries `code` and `metadata.{responseCode, rateLimit,
-clientRequestId}` — but **not** `status`. Reading `error.status` is why 0.1.0
-reported every failure as `Stream API Error (unknown)`.
+1. **Schema** — zod rejects malformed input before the handler runs. The MCP SDK returns the validation failure as a tool error.
+2. **Handler** — cross-field rules a per-field schema cannot express (e.g. "a distinct channel needs 2+ members") throw `ToolInputError`.
+3. **Transport** — `formatErrorMessage` unpacks the SDK's `StreamError`: HTTP status, Stream error code, a remediation hint for common codes, remaining rate limit and the client request id.
 
-Common Stream codes are mapped to a one-line remediation hint so a model stops
-retrying something unretryable: `4` input error, `9` rate limited, `16` does
-not exist, `17` not allowed, `40` auth failed.
+Nothing escapes to the process; `src/index.ts`'s handlers exist for genuinely unexpected failures.
 
-## Configuration surface
+## Response compaction
 
-| Variable                        | Effect                                                                                    |
-| ------------------------------- | ----------------------------------------------------------------------------------------- |
-| `STREAM_MCP_TOOLSETS`           | Which groups register. Unknown names fail at startup rather than being ignored.           |
-| `STREAM_MCP_READ_ONLY`          | Registers only tools annotated `readOnlyHint` — the safe mode for production credentials. |
-| `STREAM_TIMEOUT_MS`             | Request timeout. Positive integers only; a fraction would floor to a 0 ms timeout.        |
-| `STREAM_MCP_MAX_RESPONSE_BYTES` | Backstop on one tool result, measured in UTF-8 bytes.                                     |
-| `STREAM_BASE_URL`               | Overrides the Stream API base URL.                                                        |
+`shrink()` in `src/utils/format.ts` walks a response and drops keys that are large and rarely actionable (`config`, `own_capabilities`, `grants`, `commands`, `push_notifications`, `thumbnails`), caps arrays at 20 items with an `_omitted_items` marker, and trims strings over 2000 characters. Tools whose payload _is_ one of those blobs (`chat_get_channel_type`, `video_get_call_type`, `app_get_settings`) set `compact: false`.
 
-Credentials are read lazily, so `tools/list` works before an app is configured
-and discovery never depends on valid keys.
+Request-side defaults matter as much: `chat_query_channels` sends `message_limit: 0`, because 30 channels × 25 messages is tens of thousands of tokens.
 
-## Scripts
+## Testing
 
-| Script               | Purpose                                                                                          |
-| -------------------- | ------------------------------------------------------------------------------------------------ |
-| `npm run docs:tools` | Regenerates the tool reference from `ALL_TOOLS`. `docs:check` fails CI when it drifts.           |
-| `npm run smoke`      | Boots the built server over stdio and validates `tools/list` and both gating modes.              |
-| `npm run probe`      | Calls every read-only tool against a live app. Writes nothing, so it is safe against production. |
+- `registry.test.ts` — table checks over `ALL_TOOLS`: unique names, valid prefixes and toolsets, annotations present and consistent, no tool declares `verbose` itself.
+- `server.test.ts` — a real `Client` over `InMemoryTransport`. This is the only layer that exercises zod validation, so schema regressions surface here.
+- `tools/payloads.test.ts` — every one of the 118 tools is invoked against a recording mock `StreamClient` and asserted against the **exact** payload it should send. A coverage test fails if a new tool has no case.
+- `tools/rejections.test.ts` — the cross-field rules, asserting no SDK call is made.
+- `integration/*.live.test.ts` — real Stream API, namespaced `mcptest-*` fixtures, teardown in `afterAll`. Skipped without credentials.
+
+Nothing reads `server["_registeredTools"]` or any other MCP SDK internal.

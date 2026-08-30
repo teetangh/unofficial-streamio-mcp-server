@@ -116,16 +116,12 @@ describe("MCP server", () => {
   });
 
   it("registers only the selected toolsets", async () => {
-    process.env.STREAM_MCP_TOOLSETS = "moderation";
+    process.env.STREAM_MCP_TOOLSETS = "app";
     const { client, toolCount } = await connect();
     const { tools } = await client.listTools();
 
-    expect(toolCount).toBe(ALL_TOOLS.filter((tool) => tool.toolset === "moderation").length);
-    // Deprecated aliases keep their original chat_* names.
-    expect(
-      tools.every((tool) => tool.name.startsWith("moderation_") || tool.name.startsWith("chat_"))
-    ).toBe(true);
-    expect(tools.some((tool) => tool.name === "chat_send_message")).toBe(false);
+    expect(toolCount).toBe(ALL_TOOLS.filter((tool) => tool.toolset === "app").length);
+    expect(tools.every((tool) => tool.name.startsWith("app_"))).toBe(true);
     await client.close();
   });
 

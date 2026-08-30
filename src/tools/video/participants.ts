@@ -172,10 +172,173 @@ const muteUsers = defineTool({
   },
 });
 
+const queryCallParticipants = defineTool({
+  name: "video_query_call_participants",
+  title: "Query call participants",
+  toolset: "video",
+  description:
+    "List users connected to a call's active session, filtered by user ID or by which tracks they are publishing. Unlike members, participants are people actually in the call right now. Stream requires at least one filter, so pass `user_ids` and/or `published_tracks`.",
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
+  inputSchema: {
+    ...callRef,
+    // Stream only supports `user_id` and `published_tracks` here, each with
+    // $eq/$in, and rejects an empty filter — so expose exactly those.
+    user_ids: z.array(z.string().min(1)).min(1).optional().describe("Restrict to these user IDs"),
+    published_tracks: z
+      .array(z.enum(["audio", "video", "screen_share", "screen_share_audio"]))
+      .min(1)
+      .optional()
+      .describe("Restrict to participants publishing these track types"),
+    limit: limit(100, 25),
+  },
+  compact: bounded,
+  handler: async (args, client) => {
+    if (args.user_ids === undefined && args.published_tracks === undefined) {
+      throw new ToolInputError(
+        "Stream requires at least one filter — pass `user_ids` and/or `published_tracks`."
+      );
+    }
+    return client.video.queryCallParticipants({
+      type: args.call_type,
+      id: args.call_id,
+      filter_conditions: defined({
+        user_id: args.user_ids ? { $in: args.user_ids } : undefined,
+        published_tracks: args.published_tracks ? { $in: args.published_tracks } : undefined,
+      }),
+      limit: args.limit ?? 25,
+    });
+  },
+});
+
+const kickUser = defineTool({
+  name: "video_kick_user",
+  title: "Kick user from call",
+  toolset: "video",
+  description:
+    "Disconnect a user from the active call session. Unlike blocking, they may rejoin unless `block` is set.",
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: false,
+    openWorldHint: true,
+  },
+  inputSchema: {
+    ...callRef,
+    user_id: z.string().min(1).describe("User ID to kick"),
+    block: z.boolean().optional().describe("Also block them from rejoining"),
+    kicked_by_id: z.string().optional().describe("Moderator performing the kick"),
+  },
+  handler: async (args, client) =>
+    client.video.kickUser({
+      type: args.call_type,
+      id: args.call_id,
+      user_id: args.user_id,
+      ...defined({ block: args.block, kicked_by_id: args.kicked_by_id }),
+    }),
+});
+
+const updateUserPermissions = defineTool({
+  name: "video_update_user_permissions",
+  title: "Grant or revoke call permissions",
+  toolset: "video",
+  description:
+    "Grant or revoke a user's per-call capabilities. Common permissions: 'send-audio', 'send-video', 'screenshare'.",
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
+  inputSchema: {
+    ...callRef,
+    user_id: z.string().min(1).describe("User whose permissions change"),
+    grant_permissions: z.array(z.string().min(1)).optional().describe("Permissions to grant"),
+    revoke_permissions: z.array(z.string().min(1)).optional().describe("Permissions to revoke"),
+  },
+  handler: async (args, client) => {
+    if (args.grant_permissions === undefined && args.revoke_permissions === undefined) {
+      throw new ToolInputError("Pass at least one of `grant_permissions` or `revoke_permissions`.");
+    }
+    return client.video.updateUserPermissions({
+      type: args.call_type,
+      id: args.call_id,
+      user_id: args.user_id,
+      ...defined({
+        grant_permissions: args.grant_permissions,
+        revoke_permissions: args.revoke_permissions,
+      }),
+    });
+  },
+});
+
+const pinVideo = defineTool({
+  name: "video_pin",
+  title: "Pin participant video",
+  toolset: "video",
+  description:
+    "Pin a participant's video for everyone in the call session. Requires the session ID from video_get_call.",
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
+  inputSchema: {
+    ...callRef,
+    session_id: z
+      .string()
+      .min(1)
+      .describe("Call session ID (from video_get_call → call.session.id)"),
+    user_id: z.string().min(1).describe("User whose video is pinned"),
+  },
+  handler: async (args, client) =>
+    client.video.videoPin({
+      type: args.call_type,
+      id: args.call_id,
+      session_id: args.session_id,
+      user_id: args.user_id,
+    }),
+});
+
+const unpinVideo = defineTool({
+  name: "video_unpin",
+  title: "Unpin participant video",
+  toolset: "video",
+  description: "Remove a server-side video pin.",
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
+  inputSchema: {
+    ...callRef,
+    session_id: z.string().min(1).describe("Call session ID"),
+    user_id: z.string().min(1).describe("User whose pin is removed"),
+  },
+  handler: async (args, client) =>
+    client.video.videoUnpin({
+      type: args.call_type,
+      id: args.call_id,
+      session_id: args.session_id,
+      user_id: args.user_id,
+    }),
+});
+
 export const participantTools: AnyToolDef[] = [
   updateCallMembers,
   queryCallMembers,
   blockUser,
   unblockUser,
   muteUsers,
+  queryCallParticipants,
+  kickUser,
+  updateUserPermissions,
+  pinVideo,
+  unpinVideo,
 ];

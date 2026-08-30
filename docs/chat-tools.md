@@ -4,7 +4,7 @@
 
 Tools for messaging, channels, users, tokens and moderation. Toolsets: `chat`, `chat-admin`, `users`, `moderation`.
 
-## Toolset `chat` (8 tools)
+## Toolset `chat` (35 tools)
 
 ### `chat_create_channel` — idempotent
 
@@ -85,6 +85,120 @@ Partially update a channel's data. `set` adds or overwrites fields (e.g. {name: 
 | `unset` | array | no | Field names to remove |
 | `user_id` | string | no | Acting user ID |
 
+### `chat_get_channel` — read-only, idempotent
+
+Fetch a channel's state: its data, members, and most recent messages. This is the primary way to READ chat history. Page backwards through history with `before_message_id` (pass the oldest message id you already have).
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `channel_type` | string | **yes** | Channel type (e.g. 'messaging', 'team', 'livestream') |
+| `channel_id` | string | **yes** | Channel ID |
+| `message_limit` | integer | no | Max results to return (default: 25, max: 300) |
+| `before_message_id` | string | no | Return messages older than this message ID (pagination) |
+| `around_message_id` | string | no | Return messages centred on this message ID |
+| `member_limit` | integer | no | Max results to return (default: 30, max: 100) |
+
+### `chat_delete_channel` — **destructive**, idempotent
+
+Delete a channel. Soft delete by default (recoverable, id stays taken). `hard_delete: true` permanently removes the channel and all its messages and frees the id.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `channel_type` | string | **yes** | Channel type (e.g. 'messaging', 'team', 'livestream') |
+| `channel_id` | string | **yes** | Channel ID |
+| `hard_delete` | boolean | no | Permanently delete the channel and all messages. Irreversible. Default: false. |
+
+### `chat_truncate_channel` — **destructive**, idempotent
+
+Remove all messages from a channel while keeping the channel and its members. Optionally post a system message explaining the truncation.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `channel_type` | string | **yes** | Channel type (e.g. 'messaging', 'team', 'livestream') |
+| `channel_id` | string | **yes** | Channel ID |
+| `user_id` | string | no | Acting user ID |
+| `hard_delete` | boolean | no | Permanently remove messages rather than soft-deleting |
+| `truncated_at` | string | no | ISO-8601 timestamp — only truncate messages older than this |
+| `system_message` | string | no | System message to post after truncating |
+
+### `chat_query_members` — read-only, idempotent
+
+Search and filter the members of a channel. Common filters: {name: {$autocomplete: 'ali'}}, {channel_role: {$eq: 'channel_moderator'}}, {banned: true}.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `channel_type` | string | **yes** | Channel type (e.g. 'messaging', 'team', 'livestream') |
+| `channel_id` | string | **yes** | Channel ID |
+| `filter_conditions` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
+| `sort` | array | no | Sort parameters, applied in order |
+| `limit` | integer | no | Max results to return (default: 25, max: 100) |
+| `offset` | integer | no | Number of results to skip (max: 1000) |
+| `user_id` | string | no | Query as this user |
+
+### `chat_update_member` — idempotent
+
+Partially update one member's custom data on a channel. `set` adds or overwrites fields, `unset` removes them.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `channel_type` | string | **yes** | Channel type (e.g. 'messaging', 'team', 'livestream') |
+| `channel_id` | string | **yes** | Channel ID |
+| `user_id` | string | **yes** | The member to update |
+| `set` | object | no | Member fields to set |
+| `unset` | array | no | Member field names to remove |
+
+### `chat_mute_channel` — idempotent
+
+Mute one or more channels for a user, suppressing their push notifications.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `user_id` | string | **yes** | User to mute the channels for |
+| `channel_cids` | array | **yes** | Channel CIDs, e.g. ['messaging:general'] |
+| `expiration` | integer | no | Mute duration in milliseconds. Omit for indefinite. |
+
+### `chat_unmute_channel` — idempotent
+
+Remove a user's mute on one or more channels.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `user_id` | string | **yes** | User whose mute should be removed |
+| `channel_cids` | array | **yes** | Channel CIDs to unmute |
+
+### `chat_hide_channel` — idempotent
+
+Hide a channel from one user's channel list. It reappears when a new message arrives unless the channel type is configured otherwise.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `channel_type` | string | **yes** | Channel type (e.g. 'messaging', 'team', 'livestream') |
+| `channel_id` | string | **yes** | Channel ID |
+| `user_id` | string | **yes** | User to hide the channel for |
+| `clear_history` | boolean | no | Also clear this user's message history for the channel |
+
+### `chat_show_channel` — idempotent
+
+Un-hide a previously hidden channel for a user.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `channel_type` | string | **yes** | Channel type (e.g. 'messaging', 'team', 'livestream') |
+| `channel_id` | string | **yes** | Channel ID |
+| `user_id` | string | **yes** | User to show the channel for |
+
+### `chat_send_event`
+
+Broadcast a custom real-time event to everyone watching a channel. Not persisted as a message — use for typing indicators, presence signals, or app-specific pings.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `channel_type` | string | **yes** | Channel type (e.g. 'messaging', 'team', 'livestream') |
+| `channel_id` | string | **yes** | Channel ID |
+| `event_type` | string | **yes** | Custom event type, e.g. 'order_shipped'. Letters, numbers, _ and - only. |
+| `user_id` | string | **yes** | User the event is attributed to |
+| `custom` | object | no | Custom key/value data stored on the object |
+
 ### `chat_send_message`
 
 Send a message to a channel on behalf of a user. Set `parent_id` to reply in a thread. Supports attachments, mentions and markdown text.
@@ -115,7 +229,254 @@ Delete a message. Soft delete by default — the message is marked deleted but r
 | `hard` | boolean | no | Permanently remove. Irreversible. Default: false. |
 | `deleted_by` | string | no | User ID credited with the deletion |
 
-## Toolset `users` (3 tools)
+### `chat_get_message` — read-only, idempotent
+
+Fetch a single message by ID, including its attachments, reactions and thread metadata.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `message_id` | string | **yes** | Message ID |
+| `show_deleted_message` | boolean | no | Include the message even if soft-deleted |
+
+### `chat_get_many_messages` — read-only, idempotent
+
+Fetch several messages from one channel by ID in a single call.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `channel_type` | string | **yes** | Channel type (e.g. 'messaging', 'team', 'livestream') |
+| `channel_id` | string | **yes** | Channel ID |
+| `message_ids` | array | **yes** | Message IDs to fetch |
+
+### `chat_search_messages` — read-only, idempotent
+
+Full-text search across messages. `filter_conditions` scopes which channels to search (required — e.g. {members: {$in: ['user-id']}} or {type: 'messaging'}). Provide `query` for full-text search, or `message_filter_conditions` for structured matching such as {text: {$autocomplete: 'refund'}}.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `filter_conditions` | object | **yes** | Channel filter that scopes the search, e.g. {members: {$in: ['alice']}} |
+| `query` | string | no | Full-text search term |
+| `message_filter_conditions` | object | no | Structured message filter, e.g. {text: {$autocomplete: 'refund'}} |
+| `sort` | array | no | Sort parameters, applied in order |
+| `limit` | integer | no | Max results to return (default: 20, max: 100) |
+| `offset` | integer | no | Number of results to skip (max: 1000) |
+| `next` | string | no | Cursor from a previous response's `next` field |
+
+### `chat_update_message` — **destructive**, idempotent
+
+Replace a message's contents. This is a full update — fields you omit are cleared. For targeted edits use chat_update_message_partial.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `message_id` | string | **yes** | Message ID to update |
+| `text` | string | **yes** | New message text |
+| `user_id` | string | **yes** | User the message belongs to |
+| `attachments` | array | no | Replacement attachments |
+| `mentioned_users` | array | no |  |
+| `custom` | object | no | Custom key/value data stored on the object |
+
+### `chat_update_message_partial` — idempotent
+
+Change specific fields on a message without touching the rest. `set` overwrites fields (e.g. {text: '…', pinned: true}), `unset` removes them.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `message_id` | string | **yes** | Message ID to update |
+| `set` | object | no | Fields to set, e.g. {text: 'edited'} |
+| `unset` | array | no | Field names to remove |
+| `user_id` | string | no | Acting user ID |
+
+### `chat_undelete_message` — idempotent
+
+Restore a soft-deleted message. Hard-deleted messages cannot be restored.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `message_id` | string | **yes** | Message ID to restore |
+| `undeleted_by` | string | **yes** | User ID performing the restore |
+
+### `chat_get_replies` — read-only, idempotent
+
+Fetch the replies in a message thread. Page backwards with `before_message_id` (the oldest reply id you already have).
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `parent_message_id` | string | **yes** | The thread's parent message ID |
+| `limit` | integer | no | Max results to return (default: 25, max: 300) |
+| `before_message_id` | string | no | Return replies older than this message ID |
+| `sort` | array | no | Sort parameters, applied in order |
+
+### `chat_get_pinned_messages` — read-only, idempotent
+
+List the pinned messages in a channel. `user_id` is accepted for parity with other channel tools but does not affect the result.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `channel_type` | string | **yes** | Channel type (e.g. 'messaging', 'team', 'livestream') |
+| `channel_id` | string | **yes** | Channel ID |
+| `limit` | integer | no | Max results to return (default: 25, max: 100) |
+| `user_id` | string | no | Query as this user |
+
+### `chat_translate_message` — idempotent
+
+Translate a message into another language. The translation is stored on the message under `i18n`.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `message_id` | string | **yes** | Message ID to translate |
+| `language` | `af` \| `am` \| `ar` \| `az` \| `bg` \| `bn` \| `bs` \| `cs` \| `da` \| `de` \| `el` \| `en` \| `es` \| `es-MX` \| `et` \| `fa` \| `fa-AF` \| `fi` \| `fr` \| `fr-CA` \| `ha` \| `he` \| `hi` \| `hr` \| `ht` \| `hu` \| `id` \| `it` \| `ja` \| `ka` \| `ko` \| `lt` \| `lv` \| `ms` \| `nl` \| `no` \| `pl` \| `ps` \| `pt` \| `ro` \| `ru` \| `sk` \| `sl` \| `so` \| `sq` \| `sr` \| `sv` \| `sw` \| `ta` \| `th` \| `tl` \| `tr` \| `uk` \| `ur` \| `vi` \| `zh` \| `zh-TW` | **yes** | Target language code, e.g. 'es', 'fr', 'hi', 'zh', 'pt'. |
+
+### `chat_send_reaction` — idempotent
+
+Add a reaction to a message on behalf of a user.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `message_id` | string | **yes** | Message ID to react to |
+| `type` | string | **yes** | Reaction type, e.g. 'like', 'love', 'haha' |
+| `user_id` | string | **yes** | User adding the reaction |
+| `score` | integer | no | Reaction weight, for cumulative reactions |
+| `enforce_unique` | boolean | no | Replace this user's existing reaction on the message |
+| `skip_push` | boolean | no | Do not send a push notification |
+
+### `chat_delete_reaction` — **destructive**, idempotent
+
+Remove a user's reaction from a message.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `message_id` | string | **yes** | Message ID |
+| `type` | string | **yes** | Reaction type to remove |
+| `user_id` | string | **yes** | User whose reaction is removed |
+
+### `chat_get_reactions` — read-only, idempotent
+
+List the reactions on a message.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `message_id` | string | **yes** | Message ID |
+| `limit` | integer | no | Max results to return (default: 50, max: 300) |
+| `offset` | integer | no | Number of results to skip (max: 1000) |
+
+### `chat_mark_read` — idempotent
+
+Mark a channel as read for a user, up to a specific message if `message_id` is given.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `channel_type` | string | **yes** | Channel type (e.g. 'messaging', 'team', 'livestream') |
+| `channel_id` | string | **yes** | Channel ID |
+| `user_id` | string | **yes** | User to mark the channel read for |
+| `message_id` | string | no | Mark read up to this message |
+| `thread_id` | string | no | Mark a specific thread read |
+
+### `chat_mark_unread` — idempotent
+
+Mark a channel unread for a user from a given message onwards.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `channel_type` | string | **yes** | Channel type (e.g. 'messaging', 'team', 'livestream') |
+| `channel_id` | string | **yes** | Channel ID |
+| `user_id` | string | **yes** | User to mark the channel unread for |
+| `message_id` | string | no | Mark unread from this message onwards |
+| `thread_id` | string | no | Mark a specific thread unread |
+
+### `chat_unread_counts` — read-only, idempotent
+
+Get a user's unread message and channel counts across the app.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `user_id` | string | **yes** | User to get unread counts for |
+
+### `chat_query_threads` — read-only, idempotent
+
+List message threads a user participates in, most recently active first.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `user_id` | string | **yes** | User whose threads to list |
+| `filter` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
+| `sort` | array | no | Sort parameters, applied in order |
+| `limit` | integer | no | Max results to return (default: 10, max: 25) |
+| `reply_limit` | integer | no | Max results to return (default: 2, max: 10) |
+| `next` | string | no | Cursor from a previous response's `next` field |
+
+### `chat_get_thread` — read-only, idempotent
+
+Fetch one thread by its parent message ID, with its replies and participants.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `parent_message_id` | string | **yes** | The thread's parent message ID |
+| `reply_limit` | integer | no | Max results to return (default: 10, max: 25) |
+| `participant_limit` | integer | no | Max results to return (default: 10, max: 100) |
+
+## Toolset `chat-admin` (6 tools)
+
+### `chat_list_channel_types` — read-only, idempotent
+
+List the app's channel types with their key feature flags. Returns a summary — use chat_get_channel_type for one type's full configuration and permission grants.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| _(none)_ | | | |
+
+### `chat_get_channel_type` — read-only, idempotent
+
+Get one channel type's full configuration, including its permission grants.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | **yes** | Channel type name, e.g. 'messaging' |
+
+### `chat_create_channel_type`
+
+Create a custom channel type. `automod`, `automod_behavior` and `max_message_length` are required by Stream. Read an existing type with chat_get_channel_type first to see sensible values.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | **yes** | Unique channel type name |
+| `automod` | `disabled` \| `simple` \| `AI` | **yes** | Automod mode. Use 'disabled' unless you have moderation configured. |
+| `automod_behavior` | `flag` \| `block` | **yes** | What automod does on a match |
+| `max_message_length` | integer | **yes** | Maximum message length in characters (Stream's default is 5000) |
+| `settings` | object | no | Additional settings, e.g. {typing_events: true, read_events: true, replies: true, reactions: true, uploads: true, message_retention: 'infinite'} |
+| `grants` | object | no | Permission grants keyed by role, e.g. {channel_member: ['read-channel']} |
+
+### `chat_update_channel_type` — **destructive**, idempotent
+
+Update a channel type's settings or permission grants. Applies to every channel of that type, app-wide. Stream requires `automod`, `automod_behavior` and `max_message_length` on every update — read the current values with chat_get_channel_type and pass them back unchanged if you are not changing them.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | **yes** | Channel type name |
+| `automod` | `disabled` \| `simple` \| `AI` | **yes** | Automod mode |
+| `automod_behavior` | `flag` \| `block` \| `shadow_block` | **yes** | What automod does on a match |
+| `max_message_length` | integer | **yes** | Maximum message length in characters |
+| `settings` | object | no | Other settings to change, e.g. {typing_events: false, replies: true} |
+| `grants` | object | no | Permission grants keyed by role |
+
+### `chat_delete_channel_type` — **destructive**, idempotent
+
+Delete a custom channel type. Fails if any channel of that type still exists. Built-in types cannot be deleted.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | **yes** | Channel type name to delete |
+
+### `chat_export_channels`
+
+Start an asynchronous export of one or more channels and their messages. Returns a task id — poll it with app_get_task to get the download URL.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `channel_cids` | array | **yes** | Channel CIDs to export, e.g. ['messaging:general'] |
+| `include_truncated_messages` | boolean | no | Include messages removed by a truncate |
+| `clear_deleted_message_text` | boolean | no | Blank out deleted message text |
+
+## Toolset `users` (14 tools)
 
 ### `chat_create_token`
 
@@ -126,6 +487,17 @@ Deprecated aliases: `auth_create_user_token`
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `user_id` | string | **yes** | User ID the token is for |
+| `validity_in_seconds` | integer | no | Token lifetime in seconds (default: 3600, i.e. 1 hour) |
+
+### `auth_create_call_token`
+
+Mint a Stream JWT scoped to specific calls. Use this to let a user join only the listed calls, optionally with an elevated call role such as 'host'. Without `call_cids` this behaves like a normal user token.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `user_id` | string | **yes** | User ID the token is for |
+| `call_cids` | array | **yes** | Call CIDs the token grants access to, e.g. ['default:standup-2026-09-01'] |
+| `role` | string | no | Call role granted by the token, e.g. 'host', 'speaker', 'admin' |
 | `validity_in_seconds` | integer | no | Token lifetime in seconds (default: 3600, i.e. 1 hour) |
 
 ### `chat_upsert_users` — **destructive**, idempotent
@@ -153,7 +525,102 @@ Deprecated aliases: `users_query`
 | `presence` | boolean | no | Include online/presence state |
 | `include_deactivated_users` | boolean | no | Include deactivated users |
 
-## Toolset `moderation` (3 tools)
+### `users_update_partial` — idempotent
+
+Change specific fields on users without clearing the rest. `set` overwrites fields, `unset` removes them.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `users` | array | **yes** | Partial updates, one per user |
+
+### `users_deactivate` — **destructive**, idempotent
+
+Deactivate a user. They can no longer connect, but their data is retained and they can be reactivated.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `user_id` | string | **yes** | User ID to deactivate |
+| `mark_messages_deleted` | boolean | no | Also mark their messages deleted |
+| `created_by_id` | string | no | Acting user ID |
+
+### `users_reactivate` — idempotent
+
+Reactivate a previously deactivated user, optionally restoring their messages.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `user_id` | string | **yes** | User ID to reactivate |
+| `restore_messages` | boolean | no | Restore messages deleted at deactivation |
+| `name` | string | no | Set a new display name on reactivation |
+| `created_by_id` | string | no | Acting user ID |
+
+### `users_delete` — **destructive**
+
+Delete users asynchronously. Returns a task id — poll it with app_get_task. Choose 'soft' (recoverable), 'pruning' (removes content, keeps the id) or 'hard' (irreversible) per data category.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `user_ids` | array | **yes** | User IDs to delete |
+| `user` | `soft` \| `pruning` \| `hard` | no | How to delete the user record. Default: soft. |
+| `messages` | `soft` \| `pruning` \| `hard` | no | How to delete their messages |
+| `conversations` | `soft` \| `hard` | no | How to delete their channels |
+| `calls` | `soft` \| `hard` | no | How to delete their calls |
+| `new_channel_owner_id` | string | no | Reassign their channels to this user instead of deleting |
+
+### `users_restore` — idempotent
+
+Restore soft-deleted users. Hard-deleted or pruned users cannot be restored.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `user_ids` | array | **yes** | User IDs to restore |
+
+### `users_create_guest`
+
+Create a guest user and return a token for them. Guests get the 'guest' role and limited permissions. Guest creation must be enabled on the app.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | **yes** | Guest user ID |
+| `name` | string | no | Display name |
+| `image` | string | no | Avatar URL |
+| `custom` | object | no | Custom key/value data stored on the object |
+
+### `users_block` — **destructive**, idempotent
+
+One user blocks another, hiding the blocked user's messages from them. This is a personal block, not a moderation ban — use moderation_ban_user for that.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `user_id` | string | **yes** | User doing the blocking |
+| `blocked_user_id` | string | **yes** | User being blocked |
+
+### `users_unblock` — idempotent
+
+Remove a user-to-user block, so the blocked user's messages become visible to the blocker again.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `user_id` | string | **yes** | User who did the blocking |
+| `blocked_user_id` | string | **yes** | User being unblocked |
+
+### `users_get_blocked` — read-only, idempotent
+
+List the users a given user has blocked.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `user_id` | string | **yes** | User whose block list to read |
+
+### `users_export` — read-only, idempotent
+
+Export one user's data — their profile, channels and messages.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `user_id` | string | **yes** | User ID to export |
+
+## Toolset `moderation` (16 tools)
 
 ### `moderation_ban_user` — **destructive**, idempotent
 
@@ -199,5 +666,148 @@ Deprecated aliases: `chat_flag_message`
 | `entity_creator_id` | string | no | User who created the flagged entity |
 | `reason` | string | no | Reason for the flag, e.g. 'spam', 'hate' |
 | `custom` | object | no | Custom key/value data stored on the object |
+
+### `moderation_query_banned_users` — read-only, idempotent
+
+List current bans. Common filters: {user_id: {$eq: 'alice'}}, {channel_cid: {$eq: 'messaging:general'}}, {banned_by_id: {$eq: 'mod'}}.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `filter_conditions` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
+| `sort` | array | no | Sort parameters, applied in order |
+| `limit` | integer | no | Max results to return (default: 25, max: 100) |
+
+### `moderation_mute_user` — **destructive**, idempotent
+
+Mute one or more users on behalf of another user. Muted users' messages are hidden from the muting user only.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `user_id` | string | **yes** | User doing the muting |
+| `target_ids` | array | **yes** | User IDs to mute |
+| `timeout` | integer | no | Mute duration in minutes. Omit for indefinite. |
+
+### `moderation_unmute_user` — idempotent
+
+Remove a user-level mute, so the muted user's messages become visible again to the user who muted them.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `user_id` | string | **yes** | User who created the mute |
+| `target_ids` | array | **yes** | User IDs to unmute |
+
+### `moderation_query_flags` — read-only, idempotent
+
+List moderation flags. Common filters: {entity_type: {$eq: 'stream:chat:v1:message'}}, {reporter_id: {$eq: 'alice'}}, {reviewed: false}.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `filter` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
+| `sort` | array | no | Sort parameters, applied in order |
+| `limit` | integer | no | Max results to return (default: 25, max: 100) |
+| `next` | string | no | Cursor from a previous response's `next` field |
+| `prev` | string | no | Cursor from a previous response's `prev` field |
+
+### `moderation_query_review_queue` — read-only, idempotent
+
+List items awaiting moderator review. Common filters: {entity_type: {$eq: 'stream:chat:v1:message'}}, {review_queue_item_status: {$eq: 'pending'}}. Act on an item with moderation_submit_action.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `filter` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
+| `sort` | array | no | Sort parameters, applied in order |
+| `limit` | integer | no | Max results to return (default: 25, max: 100) |
+| `next` | string | no | Cursor from a previous response's `next` field |
+| `prev` | string | no | Cursor from a previous response's `prev` field |
+| `stats_only` | boolean | no | Return only aggregate counts, not the items |
+
+### `moderation_submit_action` — **destructive**
+
+Resolve a review queue item: mark it reviewed, delete the content, ban or unban the user, and so on. Get `item_id` from moderation_query_review_queue. Action-specific options go in `payload`, keyed by the action type (e.g. {ban: {timeout: 60, reason: 'spam'}}).
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `item_id` | string | **yes** | Review queue item ID |
+| `action_type` | `mark_reviewed` \| `delete_message` \| `delete_user` \| `delete_user_messages` \| `ban` \| `unban` \| `block` \| `unblock` \| `shadow_block` \| `restore` \| `kick_user` \| `end_call` \| `escalate` \| `de_escalate` \| `bypass` \| `custom` | **yes** | Action to take on the item |
+| `user_id` | string | no | Moderator performing the action |
+| `payload` | object | no | Action-specific options, keyed by action type, e.g. {ban: {timeout: 60, reason: 'spam'}} or {delete_message: {hard_delete: true}} |
+
+### `moderation_check` — read-only, idempotent
+
+Run text through the app's moderation policy without posting it, returning the recommended action. Useful for pre-screening user-generated content.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `entity_id` | string | **yes** | An ID for the content being checked |
+| `entity_type` | `stream:chat:v1:message` \| `stream:user` \| `stream:v2:video:call` \| `stream:feeds:v2:activity` \| `stream:feeds:v2:reaction` | no | Type of entity being checked |
+| `entity_creator_id` | string | **yes** | User who authored the content |
+| `text` | string | **yes** | The text to check |
+| `config_key` | string | no | Moderation config to check against |
+| `test_mode` | boolean | no | Evaluate without recording a moderation result |
+
+### `moderation_query_logs` — read-only, idempotent
+
+List moderation actions taken on the app — who did what, to whom, and when.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `filter` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
+| `sort` | array | no | Sort parameters, applied in order |
+| `limit` | integer | no | Max results to return (default: 25, max: 100) |
+| `next` | string | no | Cursor from a previous response's `next` field |
+| `prev` | string | no | Cursor from a previous response's `prev` field |
+
+### `moderation_list_blocklists` — read-only, idempotent
+
+List the app's word blocklists, including Stream's built-in lists. Blocklists are attached to a channel type to take effect.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `team` | string | no | Restrict to a team (multi-tenant apps) |
+
+### `moderation_get_blocklist` — read-only, idempotent
+
+Get one blocklist and its words.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | **yes** | Blocklist name |
+| `team` | string | no | Team the blocklist belongs to |
+
+### `moderation_create_blocklist`
+
+Create a word blocklist. Attach it to a channel type with chat_update_channel_type to enforce it.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | **yes** | Unique blocklist name |
+| `words` | array | **yes** | Words or patterns to block |
+| `type` | `word` \| `regex` \| `domain` \| `domain_allowlist` \| `email` \| `email_allowlist` | no | How the entries are interpreted. Default: word. |
+| `is_substring_matching_enabled` | boolean | no | Match the words anywhere inside a longer word |
+| `is_plural_check_enabled` | boolean | no | Also match plural forms |
+| `is_leet_check_enabled` | boolean | no | Also match leetspeak substitutions |
+| `team` | string | no | Team the blocklist belongs to |
+
+### `moderation_update_blocklist` — **destructive**, idempotent
+
+Update a blocklist. `words` replaces the entire list — read the current words with moderation_get_blocklist first if you are adding to it.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | **yes** | Blocklist name |
+| `words` | array | no | Replacement word list |
+| `is_substring_matching_enabled` | boolean | no |  |
+| `is_plural_check_enabled` | boolean | no |  |
+| `is_leet_check_enabled` | boolean | no |  |
+| `team` | string | no | Team the blocklist belongs to |
+
+### `moderation_delete_blocklist` — **destructive**, idempotent
+
+Delete a custom blocklist. Stream's built-in lists cannot be deleted.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | **yes** | Blocklist name to delete |
+| `team` | string | no | Team the blocklist belongs to |
 
 Every tool also accepts `verbose` (boolean) to return the raw Stream response instead of the compacted view.

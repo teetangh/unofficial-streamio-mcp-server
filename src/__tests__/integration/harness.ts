@@ -1,5 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { appendFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { getClient } from "../../clients/index.js";
 import { createServer } from "../../server.js";
@@ -24,6 +25,21 @@ export function fixtureId(kind: string): string {
 
 type Cleanup = () => Promise<unknown>;
 
+/**
+ * Records which tools a run actually invokes. Test files run in separate
+ * workers, so the tally is appended to a file and reconciled against the
+ * registry by the global teardown.
+ */
+function recordCoverage(toolName: string): void {
+  const path = process.env.STREAM_MCP_COVERAGE_FILE;
+  if (!path) return;
+  try {
+    appendFileSync(path, `${toolName}\n`);
+  } catch {
+    // Coverage bookkeeping must never fail a test.
+  }
+}
+
 export class LiveHarness {
   private client!: Client;
   private readonly cleanups: Cleanup[] = [];
@@ -38,6 +54,7 @@ export class LiveHarness {
 
   /** Calls a tool and returns its parsed payload, throwing on tool errors. */
   async call<T = any>(name: string, args: Record<string, unknown> = {}): Promise<T> {
+    recordCoverage(name);
     const result = await this.client.callTool({ name, arguments: args });
     const text = (result.content as { type: string; text: string }[])
       .filter((entry) => entry.type === "text")
@@ -54,12 +71,32 @@ export class LiveHarness {
    * *specific* Stream error still proves the request was well-formed.
    */
   async callExpectingError(name: string, args: Record<string, unknown> = {}): Promise<string> {
+    recordCoverage(name);
     const result = await this.client.callTool({ name, arguments: args });
     const text = (result.content as { type: string; text: string }[])
       .map((entry) => entry.text)
       .join("\n");
     if (!result.isError) throw new Error(`${name} unexpectedly succeeded: ${text}`);
     return text;
+  }
+
+  /**
+   * Calls a tool and reports whether it succeeded, without asserting either
+   * way. For endpoints that need a live participant — which a server-side
+   * test cannot create — the useful assertion is that any failure is Stream's
+   * *documented* one, proving the request itself was well formed. A malformed
+   * request shows up as a 404 on the URL or a schema rejection instead.
+   */
+  async callEither(
+    name: string,
+    args: Record<string, unknown> = {}
+  ): Promise<{ ok: boolean; text: string }> {
+    recordCoverage(name);
+    const result = await this.client.callTool({ name, arguments: args });
+    const text = (result.content as { type: string; text: string }[])
+      .map((entry) => entry.text)
+      .join("\n");
+    return { ok: !result.isError, text };
   }
 
   /** Registers teardown work, run in reverse order regardless of failures. */
