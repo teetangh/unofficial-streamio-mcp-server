@@ -42,4 +42,47 @@ const createUserToken = defineTool({
   },
 });
 
-export const tokenTools: AnyToolDef[] = [createUserToken];
+const createCallToken = defineTool({
+  name: "auth_create_call_token",
+  title: "Create call-scoped token",
+  toolset: "users",
+  description:
+    "Mint a Stream JWT scoped to specific calls. The token grants access only to the listed calls, optionally with an elevated call role such as 'host'. For an unscoped token covering all of chat and video, use chat_create_token instead.",
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
+  inputSchema: {
+    user_id: z.string().min(1).describe("User ID the token is for"),
+    call_cids: z
+      .array(z.string().min(1))
+      .min(1)
+      .describe("Call CIDs the token grants access to, e.g. ['default:standup-2026-09-01']"),
+    role: z
+      .string()
+      .optional()
+      .describe("Call role granted by the token, e.g. 'host', 'speaker', 'admin'"),
+    validity_in_seconds: validity,
+  },
+  handler: async (args, client) => {
+    const validityInSeconds = args.validity_in_seconds ?? DEFAULT_VALIDITY_SECONDS;
+    const token = client.generateCallToken({
+      user_id: args.user_id,
+      call_cids: args.call_cids,
+      ...(args.role !== undefined && { role: args.role }),
+      validity_in_seconds: validityInSeconds,
+    });
+    return {
+      user_id: args.user_id,
+      call_cids: args.call_cids,
+      ...(args.role !== undefined && { role: args.role }),
+      token,
+      expires_in_seconds: validityInSeconds,
+      expires_at: new Date(Date.now() + validityInSeconds * 1000).toISOString(),
+    };
+  },
+});
+
+export const tokenTools: AnyToolDef[] = [createUserToken, createCallToken];

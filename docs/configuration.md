@@ -71,12 +71,15 @@ Invalid values fail fast with a message naming the variable.
 
 ## Toolsets
 
-| Toolset      | Tools | Covers                                   |
-| ------------ | ----- | ---------------------------------------- |
-| `chat`       | 8     | Channels, members, messages              |
-| `users`      | 3     | User upsert, query, tokens               |
-| `moderation` | 3     | Bans, flags                              |
-| `video`      | 16    | Calls, members, recording, transcription |
+| Toolset       | Tools | Covers                                                           |
+| ------------- | ----- | ---------------------------------------------------------------- |
+| `chat`        | 35    | Channels, messages, threads, reactions, search, read state       |
+| `chat-admin`  | 6     | Channel types, exports                                           |
+| `users`       | 14    | User CRUD, tokens, guests, blocks, deactivation                  |
+| `moderation`  | 16    | Bans, mutes, flags, review queue, blocklists, policy checks      |
+| `video`       | 35    | Calls, members, participants, recording, transcription, HLS/RTMP |
+| `video-admin` | 8     | Call types, reports, stats, edges                                |
+| `app`         | 4     | App settings, rate limits, async tasks                           |
 
 ```json
 "env": { "STREAM_MCP_TOOLSETS": "chat,users,moderation" }
@@ -86,7 +89,7 @@ An unknown name fails at startup rather than being ignored.
 
 ## Safety
 
-`STREAM_MCP_READ_ONLY=true` registers only the tools annotated `readOnlyHint` — nothing that writes, deletes, bans or mints a token. Use it whenever the credentials belong to a production app.
+`STREAM_MCP_READ_ONLY=true` registers only the 38 tools annotated `readOnlyHint` — nothing that writes, deletes, bans or mints a token. Use it whenever the credentials belong to a production app.
 
 Destructive tools carry `destructiveHint: true`, so clients that gate on annotations can prompt before running them.
 

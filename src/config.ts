@@ -6,7 +6,15 @@
  * before the user has configured a Stream app.
  */
 
-export const ALL_TOOLSETS = ["chat", "video", "moderation", "users"] as const;
+export const ALL_TOOLSETS = [
+  "chat",
+  "chat-admin",
+  "video",
+  "video-admin",
+  "moderation",
+  "users",
+  "app",
+] as const;
 
 export type Toolset = (typeof ALL_TOOLSETS)[number];
 
