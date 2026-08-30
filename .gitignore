@@ -2,3 +2,5 @@ node_modules/
 build/
 .env
 *.tsbuildinfo
+.env.local
+coverage/

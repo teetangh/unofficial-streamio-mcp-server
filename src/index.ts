@@ -1,20 +1,54 @@
 #!/usr/bin/env node
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { registerAllTools } from "./tools/index.js";
+import { createServer, SERVER_VERSION } from "./server.js";
 
-const server = new McpServer({
-  name: "stream-io-mcp",
-  version: "0.1.0",
-});
-
-registerAllTools(server);
-
-async function main() {
+async function main(): Promise<void> {
+  const { server, toolCount } = createServer();
   const transport = new StdioServerTransport();
+
+  let shuttingDown = false;
+  const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.error(`Received ${signal}, shutting down.`);
+    try {
+      await server.close();
+    } catch (error) {
+      console.error("Error during shutdown:", error);
+    }
+    process.exit(0);
+  };
+
+  const fatal = async (): Promise<void> => {
+    try {
+      await server.close();
+    } catch (error) {
+      console.error("Error during shutdown:", error);
+    }
+    process.exit(1);
+  };
+
+  process.on("SIGINT", (signal) => void shutdown(signal));
+  process.on("SIGTERM", (signal) => void shutdown(signal));
+
+  // Every tool handler is async; without these an unexpected rejection would
+  // kill the process with no diagnostic on stderr.
+  process.on("unhandledRejection", (reason) => {
+    console.error("Unhandled rejection:", reason);
+    // Setting exitCode alone leaves the stdio transport accepting requests in
+    // an unknown state; shut down instead.
+    void fatal();
+  });
+  process.on("uncaughtException", (error) => {
+    console.error("Uncaught exception:", error);
+    process.exit(1);
+  });
+
   await server.connect(transport);
-  console.error("Stream.io MCP server running on stdio");
+  console.error(
+    `Stream.io MCP server v${SERVER_VERSION} running on stdio — ${toolCount} tools registered.`
+  );
 }
 
 main().catch((error) => {

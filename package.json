@@ -1,7 +1,7 @@
 {
   "name": "unofficial-streamio-mcp-server",
-  "version": "0.1.0",
-  "description": "Unofficial MCP server for Stream.io Chat and Video APIs",
+  "version": "0.2.0",
+  "description": "Unofficial MCP server for Stream.io Chat, Video, Users, Moderation and App APIs",
   "type": "module",
   "main": "build/index.js",
   "bin": {
@@ -10,16 +10,26 @@
   "files": [
     "build",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsc",
     "start": "node build/index.js",
     "dev": "tsc --watch",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "docs:tools": "node scripts/generate-tool-docs.mjs",
+    "docs:check": "node scripts/generate-tool-docs.mjs --check",
+    "smoke": "node scripts/smoke.mjs",
     "prepublishOnly": "npm run build",
-    "test": "vitest run --exclude src/__tests__/integration/",
-    "test:watch": "vitest --exclude src/__tests__/integration/",
-    "test:live": "vitest run --dir src/__tests__/integration/"
+    "test": "vitest run --exclude 'src/__tests__/integration/**'",
+    "test:watch": "vitest --exclude 'src/__tests__/integration/**'",
+    "test:live": "STREAM_MCP_LIVE=1 vitest run --dir src/__tests__/integration",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json",
+    "probe": "node scripts/probe.mjs"
   },
   "keywords": [
     "mcp",
@@ -29,6 +39,7 @@
     "getstream",
     "chat",
     "video",
+    "moderation",
     "claude",
     "ai",
     "llm"
@@ -44,16 +55,22 @@
   "author": "teetangh",
   "license": "MIT",
   "engines": {
-    "node": ">=18"
+    "node": ">=22.12"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1",
-    "@stream-io/node-sdk": "^0.7.44",
-    "zod": "^3.24.0"
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@stream-io/node-sdk": "^0.8.3",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^22.0.0",
+    "dotenv": "^17.4.2",
+    "eslint": "^10.9.1",
+    "globals": "^17.11.0",
+    "prettier": "^3.9.6",
     "typescript": "^5.7.0",
+    "typescript-eslint": "^8.68.0",
     "vitest": "^3.0.0"
   }
 }
