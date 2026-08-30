@@ -101,10 +101,22 @@ async function scanDeactivated(
     cursor = page.users[page.users.length - 1].id;
   }
 
+  const users = matched.slice(0, args.limit);
+  // A page can yield more matches than the caller asked for. Resuming from the
+  // end of that page would skip the ones trimmed off here, so the cursor is the
+  // last user actually returned — rows are ascending by id, so that is exact.
+  const trimmed = matched.length > users.length;
+  const exhausted = complete && !trimmed;
+
   return {
     ...(last ?? { duration: "0ms" }),
-    users: matched.slice(0, args.limit),
-    scan: defined({ scanned, pages, complete, next_id: complete ? undefined : cursor }),
+    users,
+    scan: defined({
+      scanned,
+      pages,
+      complete: exhausted,
+      next_id: exhausted ? undefined : trimmed ? users[users.length - 1].id : cursor,
+    }),
   };
 }
 
@@ -199,6 +211,13 @@ const queryUsers = defineTool({
       if (args.offset !== undefined || args.sort !== undefined) {
         throw new ToolInputError(
           "`deactivated_only` pages by ascending user id, so `offset` and `sort` do not apply. Resume a partial scan with `after_id`."
+        );
+      }
+      // The scan owns the `id` filter; silently overwriting the caller's would
+      // return a different set of users than they asked about.
+      if (args.filter_conditions?.id !== undefined) {
+        throw new ToolInputError(
+          "`deactivated_only` filters on `id` itself to page through the app, so `filter_conditions.id` cannot be set. Use `after_id` to resume, and filter on other fields freely."
         );
       }
       return scanDeactivated(client, {

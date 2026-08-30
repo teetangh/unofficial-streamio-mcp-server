@@ -20,6 +20,11 @@ const REJECTIONS: [string, Record<string, unknown>, RegExp][] = [
   // A deactivated-user scan pages by id, so offset and sort cannot apply.
   ["chat_query_users", { deactivated_only: true, offset: 10 }, /pages by ascending user id/],
   ["chat_query_users", { deactivated_only: true, sort: [{ field: "id" }] }, /ascending user id/],
+  [
+    "chat_query_users",
+    { deactivated_only: true, filter_conditions: { id: { $in: ["alice"] } } },
+    /`filter_conditions.id` cannot be set/,
+  ],
   ["chat_update_member", { ...CHANNEL, user_id: "bob" }, /`set` or `unset`/],
   ["chat_update_message_partial", { message_id: "m1" }, /`set` or `unset`/],
   [

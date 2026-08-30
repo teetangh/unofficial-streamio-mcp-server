@@ -121,6 +121,39 @@ export const userCases: ToolCase[] = [
     overrides: { queryUsers: { duration: "1ms", users: [] } },
   },
   {
+    // A page can hold more matches than were asked for. The resume cursor must
+    // be the last user returned, not the last one examined, or the trimmed
+    // matches are skipped on the next call.
+    tool: "chat_query_users",
+    args: { deactivated_only: true, limit: 2 },
+    path: "queryUsers",
+    payload: {
+      payload: {
+        filter_conditions: { id: { $gt: "" } },
+        sort: [{ field: "id", direction: 1 }],
+        limit: 100,
+        include_deactivated_users: true,
+      },
+    },
+    overrides: {
+      queryUsers: {
+        duration: "1ms",
+        users: ["a", "b", "c"].map((id) => ({ id, deactivated_at: new Date("2026-08-01Z") })),
+      },
+    },
+    assert: (_call, result) => {
+      const value = result as {
+        users: { id: string }[];
+        scan: { complete: boolean; next_id?: string };
+      };
+      if (value.users.map((user) => user.id).join() !== "a,b") {
+        throw new Error("scan returned more than the requested limit");
+      }
+      if (value.scan.complete) throw new Error("a trimmed scan is not complete");
+      if (value.scan.next_id !== "b") throw new Error("resume cursor skips the trimmed matches");
+    },
+  },
+  {
     tool: "users_update_partial",
     args: { users: [{ id: "alice", set: { name: "A" } }] },
     path: "updateUsersPartial",
