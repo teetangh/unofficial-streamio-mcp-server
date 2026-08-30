@@ -5,27 +5,30 @@
 
 ## [0.2.0](https://github.com/teetangh/unofficial-streamio-mcp-server/compare/unofficial-streamio-mcp-server-v0.1.0...unofficial-streamio-mcp-server-v0.2.0) (2026-08-30)
 
+Correctness pass over every tool plus full coverage of Stream's server-side
+API: **29 → 118 tools**. Every tool is schema-checked against the SDK's request
+models and exercised against a live Stream app in CI.
+
+Several 0.1.0 tools could never succeed — `video_start_recording` and
+`video_stop_recording` sent an invalid `recording_type` path segment,
+`chat_create_channel` silently discarded `name`, and `video_mute_users` muted
+nothing. Every Stream error was reported as `Stream API Error (unknown)`.
+
+Newly possible: reading messages, searching chat, minting call-scoped tokens,
+and going live. See the [README](README.md) for the full tool surface.
 
 ### ⚠ BREAKING CHANGES
 
-* chat_ban_user, chat_unban_user and chat_flag_message are renamed under moderation_*, kept as deprecated aliases until 0.3.0. chat_update_channel now manages members only; partial data updates move to chat_update_channel_data, and a 0.1.0 call passing set/unset now fails with an error naming the new tool rather than silently doing nothing. Minimum Node is 22.12; deps move to @stream-io/node-sdk ^0.8, @modelcontextprotocol/sdk ^1.30 and zod ^4.
+- chat_ban_user, chat_unban_user and chat_flag_message are renamed under moderation_*, kept as deprecated aliases until 0.3.0. chat_update_channel now manages members only; partial data updates move to chat_update_channel_data, and a 0.1.0 call passing set/unset now fails with an error naming the new tool rather than silently doing nothing. Minimum Node is 22.12; deps move to @stream-io/node-sdk ^0.8, @modelcontextprotocol/sdk ^1.30 and zod ^4.
 
 ### Features
 
-* add 17 tools, full test suite, and docs ([#1](https://github.com/teetangh/unofficial-streamio-mcp-server/issues/1)) ([5289ea1](https://github.com/teetangh/unofficial-streamio-mcp-server/commit/5289ea19a5956cae1f3388f2c38ca96d2f051ffc))
-* cover the rest of the Stream Chat, Video, Moderation and App APIs (30 → 118 tools) ([#7](https://github.com/teetangh/unofficial-streamio-mcp-server/issues/7)) ([c94a4ae](https://github.com/teetangh/unofficial-streamio-mcp-server/commit/c94a4ae544d86bba80d75f2b4c5c6853eed929a2))
-* initial MCP server with 12 Stream.io tools (7 chat + 5 video) ([7e6c427](https://github.com/teetangh/unofficial-streamio-mcp-server/commit/7e6c427a612f0699a119695ca22d203790fff61f))
-
+- cover the rest of the Stream Chat, Video, Moderation and App APIs (30 → 118 tools) ([#7](https://github.com/teetangh/unofficial-streamio-mcp-server/issues/7)) ([c94a4ae](https://github.com/teetangh/unofficial-streamio-mcp-server/commit/c94a4ae544d86bba80d75f2b4c5c6853eed929a2))
 
 ### Bug Fixes
 
-* repair broken tools and refactor to a declarative tool registry ([#5](https://github.com/teetangh/unofficial-streamio-mcp-server/issues/5)) ([818be35](https://github.com/teetangh/unofficial-streamio-mcp-server/commit/818be356a06f04bcfc669c58284dbc7b8c3afaaf))
-* validate starts_at as an ISO datetime ([#6](https://github.com/teetangh/unofficial-streamio-mcp-server/issues/6)) ([e8df2f8](https://github.com/teetangh/unofficial-streamio-mcp-server/commit/e8df2f822d083ffaa41b5e38381c643f4753366b))
-
-
-### Tests
-
-* add live integration tests for all 12 tools ([e44a09c](https://github.com/teetangh/unofficial-streamio-mcp-server/commit/e44a09c32e77a6acb0878675d34aa2007e7422d9))
+- repair broken tools and refactor to a declarative tool registry ([#5](https://github.com/teetangh/unofficial-streamio-mcp-server/issues/5)) ([818be35](https://github.com/teetangh/unofficial-streamio-mcp-server/commit/818be356a06f04bcfc669c58284dbc7b8c3afaaf))
+- validate starts_at as an ISO datetime ([#6](https://github.com/teetangh/unofficial-streamio-mcp-server/issues/6)) ([e8df2f8](https://github.com/teetangh/unofficial-streamio-mcp-server/commit/e8df2f822d083ffaa41b5e38381c643f4753366b))
 
 ## 0.1.0
 
