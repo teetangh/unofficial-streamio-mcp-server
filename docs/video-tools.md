@@ -4,7 +4,7 @@
 
 Tools for calls, participants, recording, broadcasting and app configuration. Toolsets: `video`, `video-admin`, `app`.
 
-## Toolset `video` (16 tools)
+## Toolset `video` (35 tools)
 
 ### `video_create_call` — idempotent
 
@@ -65,6 +65,67 @@ Search and filter calls. Common filters: {ongoing: {$eq: true}} for live calls, 
 | `limit` | integer | no | Max results to return (default: 10, max: 25) |
 | `next` | string | no | Cursor from a previous response's `next` field |
 | `prev` | string | no | Cursor from a previous response's `prev` field |
+
+### `video_delete_call` — **destructive**, idempotent
+
+Delete a call. Soft delete by default. `hard: true` permanently removes the call and its recordings and frees the id.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `hard` | boolean | no | Permanently delete. Irreversible. Default: false. |
+
+### `video_go_live` — idempotent
+
+Take a call out of backstage and make it live for viewers. Can start recording, HLS broadcasting, transcription and closed captions in the same call.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `start_hls` | boolean | no | Also start HLS broadcasting |
+| `start_recording` | boolean | no | Also start recording |
+| `start_transcription` | boolean | no | Also start transcription |
+| `start_closed_caption` | boolean | no | Also start closed captions |
+| `recording_storage_name` | string | no | External storage name for recordings |
+| `transcription_storage_name` | string | no | External storage name for transcriptions |
+
+### `video_stop_live` — **destructive**, idempotent
+
+Put a live call back into backstage. By default this also stops recording, HLS, transcription and RTMP broadcasts — pass the matching `continue_*` flag to keep one running.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `continue_hls` | boolean | no | Keep HLS broadcasting running |
+| `continue_recording` | boolean | no | Keep recording running |
+| `continue_transcription` | boolean | no | Keep transcription running |
+| `continue_rtmp_broadcasts` | boolean | no | Keep RTMP broadcasts running |
+| `continue_closed_caption` | boolean | no | Keep closed captions running |
+
+### `video_ring_call`
+
+Send an incoming-call ring to the call's members, triggering their ringing UI and push notifications.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `member_ids` | array | no | Restrict the ring to these member IDs. Omit to ring all members. |
+| `video` | boolean | no | Ring as a video call rather than audio-only |
+
+### `video_send_call_event`
+
+Broadcast a custom real-time event to everyone in a call, e.g. {custom: {'render-animation': 'balloons'}}.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `user_id` | string | **yes** | User the event is attributed to |
+| `custom` | object | **yes** | Event payload |
 
 ### `video_update_call_members` — idempotent
 
@@ -127,6 +188,64 @@ Mute participants in a call. Pass `user_ids` for specific people or `mute_all_us
 | `screenshare_audio` | boolean | no | Mute screenshare audio. Default: false. |
 | `muted_by_id` | string | **yes** | Moderator performing the mute |
 
+### `video_query_call_participants` — read-only, idempotent
+
+List users connected to a call's active session, filtered by user ID or by which tracks they are publishing. Unlike members, participants are people actually in the call right now. Stream requires at least one filter, so pass `user_ids` and/or `published_tracks`.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `user_ids` | array | no | Restrict to these user IDs |
+| `published_tracks` | array | no | Restrict to participants publishing these track types |
+| `limit` | integer | no | Max results to return (default: 25, max: 100) |
+
+### `video_kick_user` — **destructive**
+
+Disconnect a user from the active call session. Unlike blocking, they may rejoin unless `block` is set.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `user_id` | string | **yes** | User ID to kick |
+| `block` | boolean | no | Also block them from rejoining |
+| `kicked_by_id` | string | no | Moderator performing the kick |
+
+### `video_update_user_permissions` — idempotent
+
+Grant or revoke a user's per-call capabilities. Common permissions: 'send-audio', 'send-video', 'screenshare'.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `user_id` | string | **yes** | User whose permissions change |
+| `grant_permissions` | array | no | Permissions to grant |
+| `revoke_permissions` | array | no | Permissions to revoke |
+
+### `video_pin` — idempotent
+
+Pin a participant's video for everyone in the call session. Requires the session ID from video_get_call.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `session_id` | string | **yes** | Call session ID (from video_get_call → call.session.id) |
+| `user_id` | string | **yes** | User whose video is pinned |
+
+### `video_unpin` — idempotent
+
+Remove a server-side video pin.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `session_id` | string | **yes** | Call session ID |
+| `user_id` | string | **yes** | User whose pin is removed |
+
 ### `video_start_recording` — idempotent
 
 Start recording a call. The call must have an active session with at least one participant, and its recording mode must not be 'disabled' (set it with video_update_call).
@@ -187,5 +306,209 @@ List a call's transcriptions, with their session ids, filenames and download URL
 | --- | --- | --- | --- |
 | `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
 | `call_id` | string | **yes** | Call ID |
+
+### `video_delete_recording` — **destructive**, idempotent
+
+Permanently delete one recording. Get `session` and `filename` from video_list_recordings.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `session` | string | **yes** | Call session ID the recording belongs to |
+| `filename` | string | **yes** | Recording filename |
+
+### `video_delete_transcription` — **destructive**, idempotent
+
+Permanently delete one transcription. Get `session` and `filename` from video_list_transcriptions.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `session` | string | **yes** | Call session ID the transcription belongs to |
+| `filename` | string | **yes** | Transcription filename |
+
+### `video_start_closed_captions` — idempotent
+
+Start live closed captions on an active call.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `language` | `auto` \| `ar` \| `bg` \| `ca` \| `cs` \| `da` \| `de` \| `el` \| `en` \| `es` \| `et` \| `fi` \| `fr` \| `he` \| `hi` \| `hr` \| `hu` \| `id` \| `it` \| `ja` \| `ko` \| `ms` \| `nl` \| `no` \| `pl` \| `pt` \| `ro` \| `ru` \| `sk` \| `sl` \| `sv` \| `ta` \| `th` \| `tl` \| `tr` \| `uk` \| `zh` | no | Spoken language in the call, e.g. 'en', 'es', 'fr', 'hi', 'ja'. Use 'auto' to detect. Default: auto. |
+| `enable_transcription` | boolean | no | Also store a transcription |
+| `external_storage` | string | no | External storage name |
+
+### `video_stop_closed_captions` — idempotent
+
+Stop live closed captions on a call.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `stop_transcription` | boolean | no | Also stop the transcription |
+
+### `video_start_hls_broadcasting` — idempotent
+
+Start HLS broadcasting for a livestream call. The playlist URL appears on the call's `egress.hls` field (see video_get_call).
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+
+### `video_stop_hls_broadcasting` — idempotent
+
+Stop HLS broadcasting for a call.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+
+### `video_start_rtmp_broadcasts`
+
+Restream a call to external RTMP endpoints such as YouTube Live or Twitch. Each broadcast needs a unique `name` and a `stream_url`.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `broadcasts` | array | **yes** | RTMP destinations |
+
+### `video_stop_rtmp_broadcast` — idempotent
+
+Stop a single named RTMP broadcast on a call.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `name` | string | **yes** | Name the broadcast was started with |
+
+### `video_stop_all_rtmp_broadcasts` — **destructive**, idempotent
+
+Stop every RTMP broadcast running on a call.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+
+## Toolset `video-admin` (8 tools)
+
+### `video_get_call_report` — read-only, idempotent
+
+Get quality and participation statistics for a finished call session — participants, duration, latency and jitter.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `session_id` | string | no | Specific session ID. Omit for the latest session. |
+
+### `video_query_call_stats` — read-only, idempotent
+
+Query aggregated call quality statistics across calls. Filter by {call_cid: {$eq: 'default:my-call'}} or a time range.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `filter_conditions` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
+| `sort` | array | no | Sort parameters, applied in order |
+| `limit` | integer | no | Max results to return (default: 10, max: 25) |
+| `next` | string | no | Cursor from a previous response's `next` field |
+| `prev` | string | no | Cursor from a previous response's `prev` field |
+
+### `video_get_edges` — read-only, idempotent
+
+List Stream's video edge servers and their current latency and health.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| _(none)_ | | | |
+
+### `video_list_call_types` — read-only, idempotent
+
+List the app's call types with their headline settings. Returns a summary — use video_get_call_type for one type's full settings and permission grants.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| _(none)_ | | | |
+
+### `video_get_call_type` — read-only, idempotent
+
+Get one call type's full configuration, including its permission grants.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | **yes** | Call type name, e.g. 'default' |
+
+### `video_create_call_type`
+
+Create a custom call type. A call type's name is immutable once created, and existing calls keep the type they were created with.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | **yes** | Unique call type name |
+| `settings` | object | no | Call settings, e.g. {audio: {mic_default_on: true}, video: {camera_default_on: true}, recording: {mode: 'available'}, backstage: {enabled: false}, transcription: {mode: 'available'}} |
+| `grants` | object | no | Permission grants keyed by role, e.g. {host: ['join-call','send-audio','send-video'], user: ['join-call']} |
+| `external_storage` | string | no | Default external storage name |
+
+### `video_update_call_type` — **destructive**, idempotent
+
+Update a call type's default settings or permission grants. Applies app-wide to every call of that type.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | **yes** | Call type name |
+| `settings` | object | no | Call settings, e.g. {audio: {mic_default_on: true}, video: {camera_default_on: true}, recording: {mode: 'available'}, backstage: {enabled: false}, transcription: {mode: 'available'}} |
+| `grants` | object | no | Permission grants keyed by role, e.g. {host: ['join-call','send-audio','send-video'], user: ['join-call']} |
+| `external_storage` | string | no | Default external storage name |
+
+### `video_delete_call_type` — **destructive**, idempotent
+
+Delete a custom call type. Fails if calls of that type still exist. Built-in types cannot be deleted.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | **yes** | Call type name to delete |
+
+## Toolset `app` (4 tools)
+
+### `app_get_settings` — read-only, idempotent
+
+Read the Stream app's configuration: enabled features, permission version, webhook URLs, push providers, file upload rules and channel/call type summaries.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| _(none)_ | | | |
+
+### `app_update_settings` — **destructive**, idempotent
+
+Update the Stream app's configuration. Changes are global and take effect immediately — read the current settings with app_get_settings first. Pass only the keys you intend to change, e.g. {webhook_url: 'https://…'} or {multi_tenant_enabled: true}.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `settings` | object | **yes** | Settings to change, e.g. {webhook_url: 'https://example.com/hook', webhook_events: ['message.new'], async_url_enrich_enabled: true} |
+
+### `app_get_rate_limits` — read-only, idempotent
+
+Read the app's current API rate limits and remaining quota, optionally narrowed to specific endpoints.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `server_side` | boolean | no | Include server-side limits |
+| `endpoints` | string | no | Comma-separated endpoint names to narrow the result, e.g. 'QueryChannels,SendMessage' |
+
+### `app_get_task` — read-only, idempotent
+
+Poll an asynchronous task started by chat_export_channels or users_delete. Returns its status and, once complete, the result or download URL.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `task_id` | string | **yes** | Task ID returned by the operation |
 
 Every tool also accepts `verbose` (boolean) to return the raw Stream response instead of the compacted view.
