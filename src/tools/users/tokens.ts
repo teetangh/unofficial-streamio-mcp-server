@@ -47,7 +47,7 @@ const createCallToken = defineTool({
   title: "Create call-scoped token",
   toolset: "users",
   description:
-    "Mint a Stream JWT scoped to specific calls. Use this to let a user join only the listed calls, optionally with an elevated call role such as 'host'. Without `call_cids` this behaves like a normal user token.",
+    "Mint a Stream JWT scoped to specific calls. The token grants access only to the listed calls, optionally with an elevated call role such as 'host'. For an unscoped token covering all of chat and video, use chat_create_token instead.",
   annotations: {
     readOnlyHint: false,
     destructiveHint: false,

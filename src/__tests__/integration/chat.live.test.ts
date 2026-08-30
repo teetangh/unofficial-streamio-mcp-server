@@ -304,12 +304,16 @@ suite("live: chat", () => {
     const deleted = await harness.call("users_delete", { user_ids: [doomed], user: "soft" });
     expect(deleted.task_id).toBeDefined();
 
-    // Deletion is asynchronous; wait for the task before restoring.
+    // Deletion is asynchronous. Falling through a still-running task would
+    // make the restore below fail intermittently, so require a terminal state.
+    let status: string | undefined;
     for (let attempt = 0; attempt < 20; attempt += 1) {
       const task = await harness.call("app_get_task", { task_id: deleted.task_id });
-      if (task.status !== "pending" && task.status !== "running") break;
+      status = task.status;
+      if (status !== "pending" && status !== "running") break;
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
+    expect(status, "delete task did not reach a terminal state").toBe("completed");
 
     const restored = await harness.call("users_restore", { user_ids: [doomed] });
     expect(restored.duration).toBeDefined();

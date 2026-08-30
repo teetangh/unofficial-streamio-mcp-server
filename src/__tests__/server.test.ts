@@ -120,8 +120,17 @@ describe("MCP server", () => {
     const { client, toolCount } = await connect();
     const { tools } = await client.listTools();
 
-    expect(toolCount).toBe(ALL_TOOLS.filter((tool) => tool.toolset === "app").length);
-    expect(tools.every((tool) => tool.name.startsWith("app_"))).toBe(true);
+    // A fixed list, not a filter over the registry under test — otherwise a
+    // missing registration would satisfy both sides. `.every()` alone is also
+    // vacuously true for an empty result.
+    const expected = [
+      "app_get_settings",
+      "app_update_settings",
+      "app_get_rate_limits",
+      "app_get_task",
+    ];
+    expect(tools.map((tool) => tool.name).sort()).toEqual([...expected].sort());
+    expect(toolCount).toBe(expected.length);
     await client.close();
   });
 

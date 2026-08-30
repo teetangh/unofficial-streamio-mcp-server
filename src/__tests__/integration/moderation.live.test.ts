@@ -3,6 +3,14 @@ import { fixtureId, hasCredentials, LiveHarness } from "./harness.js";
 
 const suite = hasCredentials ? describe : describe.skip;
 
+/**
+ * Errors that mean the request itself was malformed. Probes for endpoints that
+ * need a live participant must reject these: the point of those probes is that
+ * a wrong field shows up here rather than as a backend state error.
+ */
+const SCHEMA_ERROR =
+  /404 |Invalid input|is a required field|unknown field|cannot be blank|must be provided/i;
+
 suite("live: moderation, users and app", () => {
   const harness = new LiveHarness();
   const moderator = fixtureId("mod");
@@ -96,7 +104,7 @@ suite("live: moderation, users and app", () => {
         action_type: "mark_reviewed",
         user_id: moderator,
       });
-      expect(result.text).not.toMatch(/404 |Invalid input/i);
+      expect(result.text).not.toMatch(SCHEMA_ERROR);
       return;
     }
 
@@ -105,7 +113,7 @@ suite("live: moderation, users and app", () => {
       action_type: "mark_reviewed",
       user_id: moderator,
     });
-    expect(result.text).not.toMatch(/404 |Invalid input/i);
+    expect(result.text).not.toMatch(SCHEMA_ERROR);
   });
 
   it("queries moderation flags and logs", async () => {

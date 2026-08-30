@@ -503,7 +503,9 @@ const markUnread = defineTool({
   inputSchema: {
     ...channelRef,
     user_id: z.string().min(1).describe("User to mark the channel unread for"),
-    message_id: z.string().optional().describe("Mark unread from this message onwards"),
+    // Stream rejects the request without it: it is what defines where unread
+    // begins.
+    message_id: z.string().min(1).describe("Mark unread from this message onwards"),
     thread_id: z.string().optional().describe("Mark a specific thread unread"),
   },
   handler: async (args, client) =>

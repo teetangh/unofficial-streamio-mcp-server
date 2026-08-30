@@ -72,7 +72,7 @@ const createBlockList = defineTool({
       defined({
         name: args.name,
         words: args.words,
-        type: args.type,
+        type: args.type ?? "word",
         is_substring_matching_enabled: args.is_substring_matching_enabled,
         is_plural_check_enabled: args.is_plural_check_enabled,
         is_leet_check_enabled: args.is_leet_check_enabled,

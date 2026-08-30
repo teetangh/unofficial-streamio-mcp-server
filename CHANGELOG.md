@@ -26,7 +26,6 @@ Full rewrite of the tool layer, plus coverage of the rest of Stream's server-sid
 
 - 89 new tools, including the previously impossible: reading messages (`chat_get_channel`, `chat_get_message`, `chat_get_replies`), searching chat (`chat_search_messages`), minting call-scoped tokens (`auth_create_call_token`), and taking a livestream live (`video_go_live`).
 - Reactions, threads, read state, channel/call types, participants, closed captions, HLS and RTMP broadcasting, review queue, blocklists, app settings and rate limits.
-- Cursor pagination (`next` / `prev`) on every paginated tool.
 - `STREAM_MCP_TOOLSETS` and `STREAM_MCP_READ_ONLY` to control the registered surface.
 - Tool `title` and `annotations` (`readOnlyHint`, `destructiveHint`, `idempotentHint`) so clients can distinguish a query from a hard delete.
 - Response compaction with a `verbose` escape and a byte cap. Arrays are trimmed from the middle so the newest entries always survive, and tools whose list length the caller already bounded with `limit` are exempt from trimming entirely.

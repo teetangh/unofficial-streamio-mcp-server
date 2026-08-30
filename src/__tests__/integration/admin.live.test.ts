@@ -3,6 +3,9 @@ import { fixtureId, hasCredentials, LiveHarness } from "./harness.js";
 
 const suite = hasCredentials ? describe : describe.skip;
 
+/** Brief pause for Stream's type registry to converge after a write. */
+const settle = () => new Promise((resolve) => setTimeout(resolve, 1500));
+
 suite("live: channel types, call types and app settings", () => {
   const harness = new LiveHarness();
   const channelTypeName = fixtureId("chtype").replace(/-/g, "");
@@ -29,6 +32,10 @@ suite("live: channel types, call types and app settings", () => {
     });
     expect(created.name).toBe(channelTypeName);
     expect(created.typing_events).toBe(true);
+
+    // Channel type creation is not immediately consistent: updating too soon
+    // can return the pre-update values and fail intermittently.
+    await settle();
 
     const updated = await harness.call("chat_update_channel_type", {
       name: channelTypeName,
@@ -58,6 +65,8 @@ suite("live: channel types, call types and app settings", () => {
     });
     expect(created.name).toBe(callTypeName);
 
+    await settle();
+
     const updated = await harness.call("video_update_call_type", {
       name: callTypeName,
       settings: { backstage: { enabled: true } },
@@ -70,7 +79,10 @@ suite("live: channel types, call types and app settings", () => {
 
   it("round-trips an app setting without changing it", async () => {
     const before = await harness.call("app_get_settings");
-    const current = Boolean(before.app.async_url_enrich_enabled);
+    const current = before.app.async_url_enrich_enabled;
+    // Coercing an absent value to false would make the round-trip assert
+    // nothing: the test would write false and then match its own coercion.
+    expect(typeof current).toBe("boolean");
 
     // Writes the value back unchanged: proves the tool reaches the endpoint
     // and is accepted, without altering the app's configuration.
@@ -80,6 +92,6 @@ suite("live: channel types, call types and app settings", () => {
     expect(result.duration).toBeDefined();
 
     const after = await harness.call("app_get_settings");
-    expect(Boolean(after.app.async_url_enrich_enabled)).toBe(current);
+    expect(after.app.async_url_enrich_enabled).toBe(current);
   });
 });

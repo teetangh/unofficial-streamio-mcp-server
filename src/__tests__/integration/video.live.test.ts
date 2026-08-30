@@ -3,6 +3,14 @@ import { fixtureId, hasCredentials, LiveHarness } from "./harness.js";
 
 const suite = hasCredentials ? describe : describe.skip;
 
+/**
+ * Errors that mean the request itself was malformed. Probes for endpoints that
+ * need a live participant must reject these: the point of those probes is that
+ * a wrong field shows up here rather than as a backend state error.
+ */
+const SCHEMA_ERROR =
+  /404 |Invalid input|is a required field|unknown field|cannot be blank|must be provided/i;
+
 suite("live: video", () => {
   const harness = new LiveHarness();
   const host = fixtureId("host");
@@ -179,7 +187,7 @@ suite("live: video", () => {
     const result = await harness.callEither("video_ring_call", { ...call, member_ids: [guest] });
     // Ringing needs the members to be reachable; either way the request shape
     // is what is under test.
-    expect(result.text).not.toMatch(/404|Invalid input|schema/i);
+    expect(result.text).not.toMatch(SCHEMA_ERROR);
   });
 
   it("mutes a participant", async () => {
@@ -197,7 +205,7 @@ suite("live: video", () => {
       user_id: guest,
       kicked_by_id: host,
     });
-    expect(result.text).not.toMatch(/404|Invalid input/i);
+    expect(result.text).not.toMatch(SCHEMA_ERROR);
   });
 
   it("pins and unpins a participant", async () => {
@@ -207,14 +215,14 @@ suite("live: video", () => {
       session_id: "no-such-session",
       user_id: guest,
     });
-    expect(pin.text).not.toMatch(/404 |Invalid input/i);
+    expect(pin.text).not.toMatch(SCHEMA_ERROR);
 
     const unpin = await harness.callEither("video_unpin", {
       ...call,
       session_id: "no-such-session",
       user_id: guest,
     });
-    expect(unpin.text).not.toMatch(/404 |Invalid input/i);
+    expect(unpin.text).not.toMatch(SCHEMA_ERROR);
   });
 
   it("reaches the closed-caption endpoints", async () => {
@@ -222,35 +230,36 @@ suite("live: video", () => {
       ...call,
       language: "en",
     });
-    expect(start.text).not.toMatch(/404|Invalid input/i);
+    expect(start.text).not.toMatch(SCHEMA_ERROR);
 
     const stop = await harness.callEither("video_stop_closed_captions", call);
-    expect(stop.text).not.toMatch(/404|Invalid input/i);
+    expect(stop.text).not.toMatch(SCHEMA_ERROR);
   });
 
   it("reaches the HLS broadcasting endpoints", async () => {
     const start = await harness.callEither("video_start_hls_broadcasting", call);
-    expect(start.text).not.toMatch(/404|Invalid input/i);
+    expect(start.text).not.toMatch(SCHEMA_ERROR);
 
     const stop = await harness.callEither("video_stop_hls_broadcasting", call);
-    expect(stop.text).not.toMatch(/404|Invalid input/i);
+    expect(stop.text).not.toMatch(SCHEMA_ERROR);
   });
 
-  it("reaches the RTMP broadcasting endpoints", async () => {
+  // Stream dials the destination, so an unreachable URL takes a while to fail.
+  it("reaches the RTMP broadcasting endpoints", { timeout: 30_000 }, async () => {
     const start = await harness.callEither("video_start_rtmp_broadcasts", {
       ...call,
       broadcasts: [{ name: "mcptest", stream_url: "rtmp://example.invalid/live" }],
     });
-    expect(start.text).not.toMatch(/404|Invalid input/i);
+    expect(start.text).not.toMatch(SCHEMA_ERROR);
 
     const stopOne = await harness.callEither("video_stop_rtmp_broadcast", {
       ...call,
       name: "mcptest",
     });
-    expect(stopOne.text).not.toMatch(/404 |Invalid input/i);
+    expect(stopOne.text).not.toMatch(SCHEMA_ERROR);
 
     const stopAll = await harness.callEither("video_stop_all_rtmp_broadcasts", call);
-    expect(stopAll.text).not.toMatch(/404 |Invalid input/i);
+    expect(stopAll.text).not.toMatch(SCHEMA_ERROR);
   });
 
   it("rejects deleting a recording that does not exist", async () => {
@@ -274,7 +283,7 @@ suite("live: video", () => {
   it("reaches the call report endpoint", async () => {
     const result = await harness.callEither("video_get_call_report", call);
     // Without a finished session there is no report, but the path must resolve.
-    expect(result.text).not.toMatch(/404 |Invalid input/i);
+    expect(result.text).not.toMatch(SCHEMA_ERROR);
   });
 
   it("queries call stats", async () => {

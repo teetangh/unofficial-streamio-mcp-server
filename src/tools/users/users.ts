@@ -204,7 +204,7 @@ const deleteUsers = defineTool({
     client.deleteUsers(
       defined({
         user_ids: args.user_ids,
-        user: args.user,
+        user: args.user ?? "soft",
         messages: args.messages,
         conversations: args.conversations,
         calls: args.calls,

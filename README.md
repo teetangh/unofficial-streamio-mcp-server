@@ -57,7 +57,7 @@ The server starts and lists its tools without credentials, so tool discovery wor
 
 ### Keeping the tool surface small
 
-All 118 tools is roughly 145 KB of JSON Schema in every session. Two knobs:
+The full set of 118 tools is roughly 148 KB of JSON Schema in every session. Two knobs:
 
 ```jsonc
 // Only chat + users — 49 tools
@@ -100,7 +100,7 @@ Stream responses are large — a `queryChannels` page is mostly channel-type con
 
 ## Not covered
 
-Feeds v3 (`client.feeds`). This package is scoped to Chat and Video.
+Feeds v3 (`client.feeds`). This package covers Stream's Chat, Video, Users, Moderation and App APIs.
 
 ## Development
 

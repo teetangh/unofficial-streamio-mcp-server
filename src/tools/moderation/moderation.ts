@@ -9,9 +9,36 @@ import {
   sortParams,
 } from "../../schemas/common.js";
 import { bounded } from "../../utils/format.js";
+import { ToolInputError } from "../../utils/errors.js";
 import { defineTool, type AnyToolDef } from "../define.js";
 
 /** Stream's moderation entity types, as used by flag/check/review. */
+/**
+ * Payload keys Stream's SubmitActionRequest accepts. Anything else is dropped
+ * silently by the SDK's request builder.
+ */
+const ACTION_PAYLOAD_KEYS = new Set([
+  "appeal_id",
+  "ban",
+  "block",
+  "bypass",
+  "custom",
+  "delete_activity",
+  "delete_comment",
+  "delete_message",
+  "delete_reaction",
+  "delete_user",
+  "delete_user_messages",
+  "escalate",
+  "flag",
+  "mark_reviewed",
+  "reject_appeal",
+  "restore",
+  "shadow_block",
+  "unban",
+  "unblock",
+]);
+
 const ENTITY_TYPES = [
   "stream:chat:v1:message",
   "stream:user",
@@ -350,15 +377,25 @@ const submitAction = defineTool({
         "Action-specific options, keyed by action type, e.g. {ban: {timeout: 60, reason: 'spam'}} or {delete_message: {hard_delete: true}}"
       ),
   },
-  handler: async (args, client) =>
-    client.moderation.submitAction(
+  handler: async (args, client) => {
+    // The SDK serialises only the named SubmitActionRequest fields, so an
+    // unrecognised payload key is dropped and the action runs with no options.
+    // Note kick_user, end_call and de_escalate carry no payload of their own.
+    const unknown = Object.keys(args.payload ?? {}).filter((key) => !ACTION_PAYLOAD_KEYS.has(key));
+    if (unknown.length > 0) {
+      throw new ToolInputError(
+        `Unknown payload key(s): ${unknown.join(", ")}. Stream ignores unrecognised keys, so the action would have run without them. Valid keys: ${[...ACTION_PAYLOAD_KEYS].sort().join(", ")}`
+      );
+    }
+    return client.moderation.submitAction(
       defined({
         ...(args.payload ?? {}),
         item_id: args.item_id,
         action_type: args.action_type,
         user_id: args.user_id,
       })
-    ),
+    );
+  },
 });
 
 const checkContent = defineTool({

@@ -594,7 +594,7 @@ export const moderationCases: ToolCase[] = [
     tool: "moderation_create_blocklist",
     args: { name: "custom", words: ["foo"] },
     path: "createBlockList",
-    payload: { name: "custom", words: ["foo"] },
+    payload: { name: "custom", words: ["foo"], type: "word" },
   },
   {
     tool: "moderation_update_blocklist",

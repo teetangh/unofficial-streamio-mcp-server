@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { callRef, defined } from "../../schemas/common.js";
 import { transcriptionLanguage } from "../../schemas/languages.js";
+import { ToolInputError } from "../../utils/errors.js";
 import { defineTool, type AnyToolDef } from "../define.js";
 
 /**
@@ -333,12 +334,22 @@ const startRtmp = defineTool({
       .min(1)
       .describe("RTMP destinations"),
   },
-  handler: async (args, client) =>
-    client.video.startRTMPBroadcasts({
+  handler: async (args, client) => {
+    // Each broadcast is addressed by name, so duplicates make
+    // video_stop_rtmp_broadcast ambiguous.
+    const names = args.broadcasts.map((broadcast) => broadcast.name);
+    const duplicates = names.filter((name, index) => names.indexOf(name) !== index);
+    if (duplicates.length > 0) {
+      throw new ToolInputError(
+        `Duplicate broadcast name(s): ${[...new Set(duplicates)].join(", ")}. Each name must be unique — it is how video_stop_rtmp_broadcast identifies a broadcast.`
+      );
+    }
+    return client.video.startRTMPBroadcasts({
       type: args.call_type,
       id: args.call_id,
       broadcasts: args.broadcasts.map((broadcast) => defined({ ...broadcast })),
-    }),
+    });
+  },
 });
 
 const stopRtmp = defineTool({

@@ -380,7 +380,7 @@ Mark a channel unread for a user from a given message onwards.
 | `channel_type` | string | **yes** | Channel type (e.g. 'messaging', 'team', 'livestream') |
 | `channel_id` | string | **yes** | Channel ID |
 | `user_id` | string | **yes** | User to mark the channel unread for |
-| `message_id` | string | no | Mark unread from this message onwards |
+| `message_id` | string | **yes** | Mark unread from this message onwards |
 | `thread_id` | string | no | Mark a specific thread unread |
 
 ### `chat_unread_counts` — read-only, idempotent
@@ -491,7 +491,7 @@ Deprecated aliases: `auth_create_user_token`
 
 ### `auth_create_call_token`
 
-Mint a Stream JWT scoped to specific calls. Use this to let a user join only the listed calls, optionally with an elevated call role such as 'host'. Without `call_cids` this behaves like a normal user token.
+Mint a Stream JWT scoped to specific calls. The token grants access only to the listed calls, optionally with an elevated call role such as 'host'. For an unscoped token covering all of chat and video, use chat_create_token instead.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
