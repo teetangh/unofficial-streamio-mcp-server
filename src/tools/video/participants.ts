@@ -43,7 +43,7 @@ const updateCallMembers = defineTool({
     return client.video.updateCallMembers({
       type: args.call_type,
       id: args.call_id,
-      ...defined({ update_members: update as never, remove_members: args.remove_members }),
+      ...defined({ update_members: update, remove_members: args.remove_members }),
     });
   },
 });
@@ -78,7 +78,7 @@ const queryCallMembers = defineTool({
         limit: args.limit ?? 25,
         next: args.next,
         prev: args.prev,
-      }) as never
+      })
     ),
 });
 

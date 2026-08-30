@@ -295,7 +295,7 @@ Start transcribing a call. The call must have an active session, and transcripti
 | --- | --- | --- | --- |
 | `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
 | `call_id` | string | **yes** | Call ID |
-| `language` | string | no | Spoken language code, e.g. 'en', 'es', 'fr', 'hi', 'ja'. Use 'auto' to detect. Default: auto. |
+| `language` | `auto` \| `ar` \| `bg` \| `ca` \| `cs` \| `da` \| `de` \| `el` \| `en` \| `es` \| `et` \| `fi` \| `fr` \| `he` \| `hi` \| `hr` \| `hu` \| `id` \| `it` \| `ja` \| `ko` \| `ms` \| `nl` \| `no` \| `pl` \| `pt` \| `ro` \| `ru` \| `sk` \| `sl` \| `sv` \| `ta` \| `th` \| `tl` \| `tr` \| `uk` \| `zh` | no | Spoken language in the call, e.g. 'en', 'es', 'fr', 'hi', 'ja'. Use 'auto' to detect. Default: auto. |
 | `enable_closed_captions` | boolean | no | Also emit live closed captions |
 | `transcription_external_storage` | string | no | Name of a configured external storage target |
 
@@ -337,7 +337,7 @@ Start live closed captions on an active call.
 | --- | --- | --- | --- |
 | `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
 | `call_id` | string | **yes** | Call ID |
-| `language` | string | no | Spoken language code, e.g. 'en', 'es', 'fr', 'hi', 'ja'. Use 'auto' to detect. Default: auto. |
+| `language` | `auto` \| `ar` \| `bg` \| `ca` \| `cs` \| `da` \| `de` \| `el` \| `en` \| `es` \| `et` \| `fi` \| `fr` \| `he` \| `hi` \| `hr` \| `hu` \| `id` \| `it` \| `ja` \| `ko` \| `ms` \| `nl` \| `no` \| `pl` \| `pt` \| `ro` \| `ru` \| `sk` \| `sl` \| `sv` \| `ta` \| `th` \| `tl` \| `tr` \| `uk` \| `zh` | no | Spoken language in the call, e.g. 'en', 'es', 'fr', 'hi', 'ja'. Use 'auto' to detect. Default: auto. |
 | `enable_transcription` | boolean | no | Also store a transcription |
 | `external_storage` | string | no | External storage name |
 

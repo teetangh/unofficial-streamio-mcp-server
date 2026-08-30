@@ -70,7 +70,7 @@ const createCall = defineTool({
           custom: args.custom,
           settings_override: args.settings_override,
         }),
-      }) as never
+      })
     );
   },
 });
@@ -129,7 +129,7 @@ const updateCall = defineTool({
       type: args.call_type,
       id: args.call_id,
       ...defined({
-        settings_override: args.settings_override as never,
+        settings_override: args.settings_override,
         custom: args.custom,
         starts_at: args.starts_at ? new Date(args.starts_at) : undefined,
       }),

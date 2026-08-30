@@ -52,7 +52,7 @@ const updateAppSettings = defineTool({
         "Settings to change, e.g. {webhook_url: 'https://example.com/hook', webhook_events: ['message.new'], async_url_enrich_enabled: true}"
       ),
   },
-  handler: async (args, client) => client.updateApp(args.settings as never),
+  handler: async (args, client) => client.updateApp(args.settings),
 });
 
 const getRateLimits = defineTool({

@@ -91,7 +91,7 @@ const createCallType = defineTool({
         settings: args.settings,
         grants: args.grants,
         external_storage: args.external_storage,
-      }) as never
+      })
     ),
 });
 
@@ -131,7 +131,7 @@ const updateCallType = defineTool({
         grants: args.grants,
         external_storage: args.external_storage,
       }),
-    } as never);
+    });
   },
 });
 

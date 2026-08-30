@@ -1,6 +1,6 @@
-import type { StartTranscriptionRequest } from "@stream-io/node-sdk";
 import { z } from "zod";
 import { callRef, defined } from "../../schemas/common.js";
+import { transcriptionLanguage } from "../../schemas/languages.js";
 import { defineTool, type ToolDef } from "../define.js";
 
 /**
@@ -13,17 +13,6 @@ const recordingType = z
   .optional()
   .describe(
     "Recording layout: 'composite' (all participants in one file, the usual choice), 'individual' (one file per participant), 'raw' (unprocessed tracks). Default: composite."
-  );
-
-/** Kept in sync with the SDK's generated union so an SDK bump can't drift. */
-type TranscriptionLanguage = NonNullable<StartTranscriptionRequest["language"]>;
-
-const transcriptionLanguage = z
-  .string()
-  .min(2)
-  .optional()
-  .describe(
-    "Spoken language code, e.g. 'en', 'es', 'fr', 'hi', 'ja'. Use 'auto' to detect. Default: auto."
   );
 
 const startRecording = defineTool({
@@ -146,7 +135,7 @@ const startTranscription = defineTool({
     client.video.startTranscription({
       type: args.call_type,
       id: args.call_id,
-      language: (args.language ?? "auto") as TranscriptionLanguage,
+      language: args.language ?? "auto",
       ...defined({
         enable_closed_captions: args.enable_closed_captions,
         transcription_external_storage: args.transcription_external_storage,
@@ -241,7 +230,7 @@ const startClosedCaptions = defineTool({
       type: args.call_type,
       id: args.call_id,
       ...defined({
-        language: args.language as TranscriptionLanguage | undefined,
+        language: args.language,
         enable_transcription: args.enable_transcription,
         external_storage: args.external_storage,
       }),
@@ -348,7 +337,7 @@ const startRtmp = defineTool({
     client.video.startRTMPBroadcasts({
       type: args.call_type,
       id: args.call_id,
-      broadcasts: args.broadcasts.map((broadcast) => defined({ ...broadcast })) as never,
+      broadcasts: args.broadcasts.map((broadcast) => defined({ ...broadcast })),
     }),
 });
 

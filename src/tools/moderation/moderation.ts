@@ -66,7 +66,7 @@ const banUser = defineTool({
         shadow: args.shadow,
         ip_ban: args.ip_ban,
         delete_messages: args.delete_messages,
-      }) as never
+      })
     ),
 });
 
@@ -98,7 +98,7 @@ const unbanUser = defineTool({
         channel_cid: args.channel_cid,
         unbanned_by_id: args.unbanned_by_id,
         created_by: args.unbanned_by_id,
-      }) as never
+      })
     ),
 });
 
@@ -322,7 +322,7 @@ const submitAction = defineTool({
         action_type: args.action_type,
         user_id: args.user_id,
         ...(args.payload ?? {}),
-      }) as never
+      })
     ),
 });
 
@@ -358,7 +358,7 @@ const checkContent = defineTool({
         moderation_payload: { texts: [args.text] },
         config_key: args.config_key,
         test_mode: args.test_mode,
-      }) as never
+      })
     ),
 });
 

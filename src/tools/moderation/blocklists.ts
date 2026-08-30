@@ -37,7 +37,7 @@ const getBlockList = defineTool({
     team: z.string().optional().describe("Team the blocklist belongs to"),
   },
   handler: async (args, client) =>
-    client.getBlockList(defined({ name: args.name, team: args.team }) as never),
+    client.getBlockList(defined({ name: args.name, team: args.team })),
 });
 
 const createBlockList = defineTool({
@@ -77,7 +77,7 @@ const createBlockList = defineTool({
         is_plural_check_enabled: args.is_plural_check_enabled,
         is_leet_check_enabled: args.is_leet_check_enabled,
         team: args.team,
-      }) as never
+      })
     ),
 });
 
@@ -132,7 +132,7 @@ const deleteBlockList = defineTool({
     team: z.string().optional().describe("Team the blocklist belongs to"),
   },
   handler: async (args, client) =>
-    client.deleteBlockList(defined({ name: args.name, team: args.team }) as never),
+    client.deleteBlockList(defined({ name: args.name, team: args.team })),
 });
 
 export const blocklistTools: ToolDef<any>[] = [

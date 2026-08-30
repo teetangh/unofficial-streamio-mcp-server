@@ -99,7 +99,7 @@ const createChannelType = defineTool({
       automod_behavior: args.automod_behavior,
       max_message_length: args.max_message_length,
       ...defined({ grants: args.grants }),
-    } as never),
+    }),
 });
 
 const updateChannelType = defineTool({
@@ -139,7 +139,7 @@ const updateChannelType = defineTool({
       automod_behavior: args.automod_behavior,
       max_message_length: args.max_message_length,
       ...defined({ grants: args.grants }),
-    } as never),
+    }),
 });
 
 const deleteChannelType = defineTool({
@@ -190,7 +190,7 @@ const exportChannels = defineTool({
         channels: args.channel_cids.map((cid) => ({ cid })),
         include_truncated_messages: args.include_truncated_messages,
         clear_deleted_message_text: args.clear_deleted_message_text,
-      }) as never
+      })
     ),
 });
 

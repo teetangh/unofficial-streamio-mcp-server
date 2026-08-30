@@ -1,5 +1,6 @@
 import type { Attachment } from "@stream-io/node-sdk";
 import { z } from "zod";
+import { translationLanguage } from "../../schemas/languages.js";
 import {
   channelRef,
   customData,
@@ -357,12 +358,12 @@ const translateMessage = defineTool({
   },
   inputSchema: {
     message_id: z.string().min(1).describe("Message ID to translate"),
-    language: z.string().min(2).describe("Target language code, e.g. 'es', 'fr', 'hi', 'zh', 'pt'"),
+    language: translationLanguage,
   },
   handler: async (args, client) =>
     client.chat.translateMessage({
       id: args.message_id,
-      language: args.language as never,
+      language: args.language,
     }),
 });
 

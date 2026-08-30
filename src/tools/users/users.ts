@@ -45,7 +45,7 @@ const upsertUsers = defineTool({
         `Duplicate user id(s): ${[...new Set(duplicates)].join(", ")}. Each id may appear once.`
       );
     }
-    return client.upsertUsers(args.users.map((user) => defined(user)) as never);
+    return client.upsertUsers(args.users.map((user) => defined(user)));
   },
 });
 
@@ -110,7 +110,7 @@ const updateUsersPartial = defineTool({
   },
   handler: async (args, client) =>
     client.updateUsersPartial({
-      users: args.users.map((user) => defined(user)) as never,
+      users: args.users.map((user) => defined(user)),
     }),
 });
 
@@ -207,7 +207,7 @@ const deleteUsers = defineTool({
         conversations: args.conversations,
         calls: args.calls,
         new_channel_owner_id: args.new_channel_owner_id,
-      }) as never
+      })
     ),
 });
 
@@ -253,7 +253,7 @@ const createGuest = defineTool({
         name: args.name,
         image: args.image,
         custom: args.custom,
-      }) as never,
+      }),
     }),
 });
 

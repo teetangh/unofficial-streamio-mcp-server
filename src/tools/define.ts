@@ -106,6 +106,10 @@ export function registerTool<S extends z.ZodRawShape>(
       }
     };
 
+  // The SDK types the callback against the concrete shape it infers from
+  // `inputSchema`; ToolDef is generic over that shape, so the two cannot be
+  // related without re-deriving the SDK's inference. Runtime behaviour is
+  // covered by the round-trip tests in __tests__/server.test.ts.
   server.registerTool(
     def.name,
     {

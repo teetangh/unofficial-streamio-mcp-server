@@ -326,7 +326,7 @@ Translate a message into another language. The translation is stored on the mess
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `message_id` | string | **yes** | Message ID to translate |
-| `language` | string | **yes** | Target language code, e.g. 'es', 'fr', 'hi', 'zh', 'pt' |
+| `language` | `af` \| `am` \| `ar` \| `az` \| `bg` \| `bn` \| `bs` \| `cs` \| `da` \| `de` \| `el` \| `en` \| `es` \| `es-MX` \| `et` \| `fa` \| `fa-AF` \| `fi` \| `fr` \| `fr-CA` \| `ha` \| `he` \| `hi` \| `hr` \| `ht` \| `hu` \| `id` \| `it` \| `ja` \| `ka` \| `ko` \| `lt` \| `lv` \| `ms` \| `nl` \| `no` \| `pl` \| `ps` \| `pt` \| `ro` \| `ru` \| `sk` \| `sl` \| `so` \| `sq` \| `sr` \| `sv` \| `sw` \| `ta` \| `th` \| `tl` \| `tr` \| `uk` \| `ur` \| `vi` \| `zh` \| `zh-TW` | **yes** | Target language code, e.g. 'es', 'fr', 'hi', 'zh', 'pt'. |
 
 ### `chat_send_reaction` — idempotent
 
