@@ -383,12 +383,12 @@ export const channelCases: ToolCase[] = [
   },
   {
     tool: "chat_send_event",
-    args: { ...CHANNEL, event_type: "typing.start", user_id: "alice" },
+    args: { ...CHANNEL, event_type: "typing_start", user_id: "alice" },
     path: "chat.sendEvent",
     payload: {
       type: "messaging",
       id: "general",
-      event: { type: "typing.start", user_id: "alice" },
+      event: { type: "typing_start", user_id: "alice" },
     },
   },
 ];
@@ -475,18 +475,26 @@ export const messageCases: ToolCase[] = [
   },
   {
     tool: "chat_get_pinned_messages",
-    args: { ...CHANNEL },
-    // Routed through channel state: chat.getPinnedMessages is broken in the
-    // SDK (sends discrete query params where the API wants a JSON payload).
-    path: "chat.getOrCreateChannel",
-    payload: {
-      type: "messaging",
-      id: "general",
-      state: true,
-      messages: { limit: 1 },
-      members: { limit: 1 },
+    args: { ...CHANNEL, user_id: "alice" },
+    // Read via GET /channels/{type}/{id} so an unknown channel 404s instead
+    // of creating a phantom channel under `readOnlyHint: true`.
+    path: "apiClient.sendRequest",
+    payload: [
+      "GET",
+      "/api/v2/chat/channels/{type}/{id}",
+      { type: "messaging", id: "general" },
+      {
+        payload: JSON.stringify({
+          state: true,
+          messages_limit: 1,
+          members_limit: 1,
+          user_id: "alice",
+        }),
+      },
+    ],
+    overrides: {
+      "apiClient.sendRequest": Promise.resolve({ pinned_messages: [{ id: "m1" }] }),
     },
-    overrides: { "chat.getOrCreateChannel": Promise.resolve({ pinned_messages: [{ id: "m1" }] }) },
     assert: (_call, result) => {
       const value = result as { total: number };
       if (value.total !== 1) throw new Error("pinned message not surfaced");

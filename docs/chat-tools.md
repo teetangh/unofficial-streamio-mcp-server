@@ -27,7 +27,7 @@ Search and filter chat channels. Common filters: {type: {$eq: 'messaging'}}, {me
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `filter_conditions` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
-| `sort` | array | no | Sort parameters, applied in order |
+| `sort` | object[] | no | Sort parameters, applied in order |
 | `limit` | integer | no | Max results to return (default: 10, max: 30) |
 | `offset` | integer | no | Number of results to skip (max: 1000) |
 | `message_limit` | integer | no | Max results to return (default: 0, max: 300) |
@@ -43,10 +43,10 @@ Add or remove channel members, promote or demote moderators, assign channel role
 | `channel_type` | string | **yes** | Channel type (e.g. 'messaging', 'team', 'livestream') |
 | `channel_id` | string | **yes** | Channel ID |
 | `add_members` | array | no | Members to add — user IDs or {user_id, role} objects |
-| `remove_members` | array | no | User IDs to remove |
-| `add_moderators` | array | no | User IDs to promote to moderator |
-| `demote_moderators` | array | no | User IDs to demote from moderator |
-| `assign_roles` | array | no | Set a channel role on existing members: [{user_id, role}] |
+| `remove_members` | string[] | no | User IDs to remove |
+| `add_moderators` | string[] | no | User IDs to promote to moderator |
+| `demote_moderators` | string[] | no | User IDs to demote from moderator |
+| `assign_roles` | object[] | no | Set a channel role on existing members: [{user_id, role}] |
 | `invites` | array | no | User IDs to invite (they must accept before joining) |
 | `user_id` | string | no | Acting user — attributed as the author of the resulting system message |
 | `hide_history` | boolean | no | Hide existing history from newly added members |
@@ -60,7 +60,7 @@ Add members to a channel. The users must already exist (see chat_upsert_users). 
 | --- | --- | --- | --- |
 | `channel_type` | string | **yes** | Channel type (e.g. 'messaging', 'team', 'livestream') |
 | `channel_id` | string | **yes** | Channel ID |
-| `member_ids` | array | **yes** | User IDs to add as members |
+| `member_ids` | string[] | **yes** | User IDs to add as members |
 | `hide_history` | boolean | no | Hide existing history from the new members |
 
 ### `chat_remove_members` — **destructive**, idempotent
@@ -71,7 +71,7 @@ Remove members from a channel. Convenience wrapper over chat_update_channel.
 | --- | --- | --- | --- |
 | `channel_type` | string | **yes** | Channel type (e.g. 'messaging', 'team', 'livestream') |
 | `channel_id` | string | **yes** | Channel ID |
-| `member_ids` | array | **yes** | User IDs to remove |
+| `member_ids` | string[] | **yes** | User IDs to remove |
 
 ### `chat_update_channel_data` — idempotent
 
@@ -82,7 +82,7 @@ Partially update a channel's data. `set` adds or overwrites fields (e.g. {name: 
 | `channel_type` | string | **yes** | Channel type (e.g. 'messaging', 'team', 'livestream') |
 | `channel_id` | string | **yes** | Channel ID |
 | `set` | object | no | Fields to set, e.g. {name: 'Support', frozen: true} |
-| `unset` | array | no | Field names to remove |
+| `unset` | string[] | no | Field names to remove |
 | `user_id` | string | no | Acting user ID |
 
 ### `chat_get_channel` — read-only, idempotent
@@ -130,7 +130,7 @@ Search and filter the members of a channel. Common filters: {name: {$autocomplet
 | `channel_type` | string | **yes** | Channel type (e.g. 'messaging', 'team', 'livestream') |
 | `channel_id` | string | **yes** | Channel ID |
 | `filter_conditions` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
-| `sort` | array | no | Sort parameters, applied in order |
+| `sort` | object[] | no | Sort parameters, applied in order |
 | `limit` | integer | no | Max results to return (default: 25, max: 100) |
 | `offset` | integer | no | Number of results to skip (max: 1000) |
 | `user_id` | string | no | Query as this user |
@@ -145,7 +145,7 @@ Partially update one member's custom data on a channel. `set` adds or overwrites
 | `channel_id` | string | **yes** | Channel ID |
 | `user_id` | string | **yes** | The member to update |
 | `set` | object | no | Member fields to set |
-| `unset` | array | no | Member field names to remove |
+| `unset` | string[] | no | Member field names to remove |
 
 ### `chat_mute_channel` — idempotent
 
@@ -154,7 +154,7 @@ Mute one or more channels for a user, suppressing their push notifications.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `user_id` | string | **yes** | User to mute the channels for |
-| `channel_cids` | array | **yes** | Channel CIDs, e.g. ['messaging:general'] |
+| `channel_cids` | string[] | **yes** | Channel CIDs, e.g. ['messaging:general'] |
 | `expiration` | integer | no | Mute duration in milliseconds. Omit for indefinite. |
 
 ### `chat_unmute_channel` — idempotent
@@ -164,7 +164,7 @@ Remove a user's mute on one or more channels.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `user_id` | string | **yes** | User whose mute should be removed |
-| `channel_cids` | array | **yes** | Channel CIDs to unmute |
+| `channel_cids` | string[] | **yes** | Channel CIDs to unmute |
 
 ### `chat_hide_channel` — idempotent
 
@@ -212,8 +212,8 @@ Send a message to a channel on behalf of a user. Set `parent_id` to reply in a t
 | `parent_id` | string | no | Parent message ID — makes this a thread reply |
 | `show_in_channel` | boolean | no | For thread replies, also show the reply in the main channel |
 | `quoted_message_id` | string | no | Message ID this message quotes |
-| `mentioned_users` | array | no | User IDs mentioned in the text (max 25) |
-| `attachments` | array | no | Attachments (max 30) |
+| `mentioned_users` | string[] | no | User IDs mentioned in the text (max 25) |
+| `attachments` | object[] | no | Attachments (max 30) |
 | `silent` | boolean | no | Send without bumping unread counts or notifications |
 | `skip_push` | boolean | no | Do not send a push notification |
 | `pinned` | boolean | no | Pin the message to the channel |
@@ -246,7 +246,7 @@ Fetch several messages from one channel by ID in a single call.
 | --- | --- | --- | --- |
 | `channel_type` | string | **yes** | Channel type (e.g. 'messaging', 'team', 'livestream') |
 | `channel_id` | string | **yes** | Channel ID |
-| `message_ids` | array | **yes** | Message IDs to fetch |
+| `message_ids` | string[] | **yes** | Message IDs to fetch |
 
 ### `chat_search_messages` — read-only, idempotent
 
@@ -257,7 +257,7 @@ Full-text search across messages. `filter_conditions` scopes which channels to s
 | `filter_conditions` | object | **yes** | Channel filter that scopes the search, e.g. {members: {$in: ['alice']}} |
 | `query` | string | no | Full-text search term |
 | `message_filter_conditions` | object | no | Structured message filter, e.g. {text: {$autocomplete: 'refund'}} |
-| `sort` | array | no | Sort parameters, applied in order |
+| `sort` | object[] | no | Sort parameters, applied in order |
 | `limit` | integer | no | Max results to return (default: 20, max: 100) |
 | `offset` | integer | no | Number of results to skip (max: 1000) |
 | `next` | string | no | Cursor from a previous response's `next` field |
@@ -271,8 +271,8 @@ Replace a message's contents. This is a full update — fields you omit are clea
 | `message_id` | string | **yes** | Message ID to update |
 | `text` | string | **yes** | New message text |
 | `user_id` | string | **yes** | User the message belongs to |
-| `attachments` | array | no | Replacement attachments |
-| `mentioned_users` | array | no |  |
+| `attachments` | object[] | no | Replacement attachments |
+| `mentioned_users` | string[] | no | Replacement mentioned user IDs (max 25) |
 | `custom` | object | no | Custom key/value data stored on the object |
 
 ### `chat_update_message_partial` — idempotent
@@ -283,7 +283,7 @@ Change specific fields on a message without touching the rest. `set` overwrites 
 | --- | --- | --- | --- |
 | `message_id` | string | **yes** | Message ID to update |
 | `set` | object | no | Fields to set, e.g. {text: 'edited'} |
-| `unset` | array | no | Field names to remove |
+| `unset` | string[] | no | Field names to remove |
 | `user_id` | string | no | Acting user ID |
 
 ### `chat_undelete_message` — idempotent
@@ -304,11 +304,11 @@ Fetch the replies in a message thread. Page backwards with `before_message_id` (
 | `parent_message_id` | string | **yes** | The thread's parent message ID |
 | `limit` | integer | no | Max results to return (default: 25, max: 300) |
 | `before_message_id` | string | no | Return replies older than this message ID |
-| `sort` | array | no | Sort parameters, applied in order |
+| `sort` | object[] | no | Sort parameters, applied in order |
 
 ### `chat_get_pinned_messages` — read-only, idempotent
 
-List the pinned messages in a channel. `user_id` is accepted for parity with other channel tools but does not affect the result.
+List the pinned messages in a channel. Returns 404 if the channel does not exist; never creates one.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -399,7 +399,7 @@ List message threads a user participates in, most recently active first.
 | --- | --- | --- | --- |
 | `user_id` | string | **yes** | User whose threads to list |
 | `filter` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
-| `sort` | array | no | Sort parameters, applied in order |
+| `sort` | object[] | no | Sort parameters, applied in order |
 | `limit` | integer | no | Max results to return (default: 10, max: 25) |
 | `reply_limit` | integer | no | Max results to return (default: 2, max: 10) |
 | `next` | string | no | Cursor from a previous response's `next` field |
@@ -472,7 +472,7 @@ Start an asynchronous export of one or more channels and their messages. Returns
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `channel_cids` | array | **yes** | Channel CIDs to export, e.g. ['messaging:general'] |
+| `channel_cids` | string[] | **yes** | Channel CIDs to export, e.g. ['messaging:general'] |
 | `include_truncated_messages` | boolean | no | Include messages removed by a truncate |
 | `clear_deleted_message_text` | boolean | no | Blank out deleted message text |
 
@@ -496,7 +496,7 @@ Mint a Stream JWT scoped to specific calls. The token grants access only to the 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `user_id` | string | **yes** | User ID the token is for |
-| `call_cids` | array | **yes** | Call CIDs the token grants access to, e.g. ['default:standup-2026-09-01'] |
+| `call_cids` | string[] | **yes** | Call CIDs the token grants access to, e.g. ['default:standup-2026-09-01'] |
 | `role` | string | no | Call role granted by the token, e.g. 'host', 'speaker', 'admin' |
 | `validity_in_seconds` | integer | no | Token lifetime in seconds (default: 3600, i.e. 1 hour) |
 
@@ -508,7 +508,7 @@ Deprecated aliases: `users_upsert`
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `users` | array | **yes** | Users to create or update (max 100) |
+| `users` | object[] | **yes** | Users to create or update (max 100) |
 
 ### `chat_query_users` — read-only, idempotent
 
@@ -519,7 +519,7 @@ Deprecated aliases: `users_query`
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `filter_conditions` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
-| `sort` | array | no | Sort parameters, applied in order |
+| `sort` | object[] | no | Sort parameters, applied in order |
 | `limit` | integer | no | Max results to return (default: 10, max: 100) |
 | `offset` | integer | no | Number of results to skip (max: 1000) |
 | `presence` | boolean | no | Include online/presence state |
@@ -533,7 +533,7 @@ Change specific fields on users without clearing the rest. `set` overwrites fiel
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `users` | array | **yes** | Partial updates, one per user |
+| `users` | object[] | **yes** | Partial updates, one per user |
 
 ### `users_deactivate` — **destructive**, idempotent
 
@@ -562,7 +562,7 @@ Delete users asynchronously. Returns a task id — poll it with app_get_task. Ch
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `user_ids` | array | **yes** | User IDs to delete |
+| `user_ids` | string[] | **yes** | User IDs to delete |
 | `user` | `soft` \| `pruning` \| `hard` | no | How to delete the user record. Default: soft. |
 | `messages` | `soft` \| `pruning` \| `hard` | no | How to delete their messages |
 | `conversations` | `soft` \| `hard` | no | How to delete their channels |
@@ -575,7 +575,7 @@ Restore soft-deleted users. Hard-deleted or pruned users cannot be restored.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `user_ids` | array | **yes** | User IDs to restore |
+| `user_ids` | string[] | **yes** | User IDs to restore |
 
 ### `users_create_guest`
 
@@ -676,7 +676,7 @@ List current bans. Common filters: {user_id: {$eq: 'alice'}}, {channel_cid: {$eq
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `filter_conditions` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
-| `sort` | array | no | Sort parameters, applied in order |
+| `sort` | object[] | no | Sort parameters, applied in order |
 | `limit` | integer | no | Max results to return (default: 25, max: 100) |
 
 ### `moderation_mute_user` — **destructive**, idempotent
@@ -686,7 +686,7 @@ Mute one or more users on behalf of another user. Muted users' messages are hidd
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `user_id` | string | **yes** | User doing the muting |
-| `target_ids` | array | **yes** | User IDs to mute |
+| `target_ids` | string[] | **yes** | User IDs to mute |
 | `timeout` | integer | no | Mute duration in minutes. Omit for indefinite. |
 
 ### `moderation_unmute_user` — idempotent
@@ -696,7 +696,7 @@ Remove a user-level mute, so the muted user's messages become visible again to t
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `user_id` | string | **yes** | User who created the mute |
-| `target_ids` | array | **yes** | User IDs to unmute |
+| `target_ids` | string[] | **yes** | User IDs to unmute |
 
 ### `moderation_query_flags` — read-only, idempotent
 
@@ -705,7 +705,7 @@ List moderation flags. Common filters: {entity_type: {$eq: 'stream:chat:v1:messa
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `filter` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
-| `sort` | array | no | Sort parameters, applied in order |
+| `sort` | object[] | no | Sort parameters, applied in order |
 | `limit` | integer | no | Max results to return (default: 25, max: 100) |
 | `next` | string | no | Cursor from a previous response's `next` field |
 | `prev` | string | no | Cursor from a previous response's `prev` field |
@@ -717,7 +717,7 @@ List items awaiting moderator review. Common filters: {entity_type: {$eq: 'strea
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `filter` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
-| `sort` | array | no | Sort parameters, applied in order |
+| `sort` | object[] | no | Sort parameters, applied in order |
 | `limit` | integer | no | Max results to return (default: 25, max: 100) |
 | `next` | string | no | Cursor from a previous response's `next` field |
 | `prev` | string | no | Cursor from a previous response's `prev` field |
@@ -754,7 +754,7 @@ List moderation actions taken on the app — who did what, to whom, and when.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `filter` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
-| `sort` | array | no | Sort parameters, applied in order |
+| `sort` | object[] | no | Sort parameters, applied in order |
 | `limit` | integer | no | Max results to return (default: 25, max: 100) |
 | `next` | string | no | Cursor from a previous response's `next` field |
 | `prev` | string | no | Cursor from a previous response's `prev` field |
@@ -783,7 +783,7 @@ Create a word blocklist. Attach it to a channel type with chat_update_channel_ty
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `name` | string | **yes** | Unique blocklist name |
-| `words` | array | **yes** | Words or patterns to block |
+| `words` | string[] | **yes** | Words or patterns to block |
 | `type` | `word` \| `regex` \| `domain` \| `domain_allowlist` \| `email` \| `email_allowlist` | no | How the entries are interpreted. Default: word. |
 | `is_substring_matching_enabled` | boolean | no | Match the words anywhere inside a longer word |
 | `is_plural_check_enabled` | boolean | no | Also match plural forms |
@@ -797,10 +797,10 @@ Update a blocklist. `words` replaces the entire list — read the current words 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `name` | string | **yes** | Blocklist name |
-| `words` | array | no | Replacement word list |
-| `is_substring_matching_enabled` | boolean | no |  |
-| `is_plural_check_enabled` | boolean | no |  |
-| `is_leet_check_enabled` | boolean | no |  |
+| `words` | string[] | no | Replacement word list |
+| `is_substring_matching_enabled` | boolean | no | Match the words anywhere inside a longer word |
+| `is_plural_check_enabled` | boolean | no | Also match plural forms |
+| `is_leet_check_enabled` | boolean | no | Also match leetspeak substitutions |
 | `team` | string | no | Team the blocklist belongs to |
 
 ### `moderation_delete_blocklist` — **destructive**, idempotent

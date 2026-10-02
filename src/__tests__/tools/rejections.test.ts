@@ -67,6 +67,11 @@ const REJECTIONS: [string, Record<string, unknown>, RegExp][] = [
   ["moderation_update_blocklist", { name: "custom" }, /Nothing to update/],
   // `team` scopes the target blocklist; it is not itself a change.
   ["moderation_update_blocklist", { name: "custom", team: "eng" }, /Nothing to update/],
+  [
+    "chat_send_event",
+    { ...CHANNEL, event_type: "typing.start", user_id: "alice" },
+    /Stream reserves the dot character/,
+  ],
 ];
 
 describe("tool input rejections", () => {

@@ -1,4 +1,4 @@
-import type { Attachment } from "@stream-io/node-sdk";
+import type { Attachment, ChannelStateResponse } from "@stream-io/node-sdk";
 import { z } from "zod";
 import { translationLanguage } from "../../schemas/languages.js";
 import {
@@ -228,7 +228,11 @@ const updateMessage = defineTool({
     text: z.string().describe("New message text"),
     user_id: z.string().min(1).describe("User the message belongs to"),
     attachments: z.array(attachment).max(30).optional().describe("Replacement attachments"),
-    mentioned_users: z.array(z.string().min(1)).max(25).optional(),
+    mentioned_users: z
+      .array(z.string().min(1))
+      .max(25)
+      .optional()
+      .describe("Replacement mentioned user IDs (max 25)"),
     custom: customData,
   },
   handler: async (args, client) =>
@@ -330,7 +334,7 @@ const getPinnedMessages = defineTool({
   title: "Get pinned messages",
   toolset: "chat",
   description:
-    "List the pinned messages in a channel. `user_id` is accepted for parity with other channel tools but does not affect the result.",
+    "List the pinned messages in a channel. Returns 404 if the channel does not exist; never creates one.",
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -343,18 +347,27 @@ const getPinnedMessages = defineTool({
     user_id: z.string().optional().describe("Query as this user"),
   },
   compact: bounded,
-  // Not routed through chat.getPinnedMessages: that SDK method sends discrete
-  // query params while the endpoint expects a JSON `payload`, so every call
-  // fails with "Missing request payload". Channel state carries the same list.
+  // Read via GET /channels/{type}/{id} with a JSON `payload` query param:
+  // `chat.getPinnedMessages` sends discrete query params (400 "Missing request
+  // payload"), while `chat.getOrCreateChannel` creates phantom channels on
+  // unknown IDs — violating `readOnlyHint: true`.
   handler: async (args, client) => {
-    const state = await client.chat.getOrCreateChannel({
-      type: args.channel_type,
-      id: args.channel_id,
-      state: true,
-      messages: { limit: 1 },
-      members: { limit: 1 },
-    });
-    const pinned = state.pinned_messages ?? [];
+    const response = await client.apiClient.sendRequest<ChannelStateResponse>(
+      "GET",
+      "/api/v2/chat/channels/{type}/{id}",
+      { type: args.channel_type, id: args.channel_id },
+      {
+        payload: JSON.stringify(
+          defined({
+            state: true,
+            messages_limit: 1,
+            members_limit: 1,
+            user_id: args.user_id,
+          })
+        ),
+      }
+    );
+    const pinned = response.pinned_messages ?? [];
     return {
       pinned_messages: pinned.slice(0, args.limit ?? 25),
       total: pinned.length,
