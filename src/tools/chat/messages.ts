@@ -1,4 +1,4 @@
-import type { Attachment, ChannelStateResponse } from "@stream-io/node-sdk";
+import type { Attachment, GetPinnedMessagesResponse } from "@stream-io/node-sdk";
 import { z } from "zod";
 import { translationLanguage } from "../../schemas/languages.js";
 import {
@@ -347,30 +347,27 @@ const getPinnedMessages = defineTool({
     user_id: z.string().optional().describe("Query as this user"),
   },
   compact: bounded,
-  // Read via GET /channels/{type}/{id} with a JSON `payload` query param:
-  // `chat.getPinnedMessages` sends discrete query params (400 "Missing request
-  // payload"), while `chat.getOrCreateChannel` creates phantom channels on
-  // unknown IDs — violating `readOnlyHint: true`.
+  // Read via GET /channels/{type}/{id}/pinned_messages with a JSON `payload`
+  // query param: `chat.getPinnedMessages` sends discrete query params (400
+  // "Missing request payload"), while `chat.getOrCreateChannel` creates phantom
+  // channels on unknown IDs and truncates channel-state pins at 10.
   handler: async (args, client) => {
-    const response = await client.apiClient.sendRequest<ChannelStateResponse>(
+    const response = await client.apiClient.sendRequest<GetPinnedMessagesResponse>(
       "GET",
-      "/api/v2/chat/channels/{type}/{id}",
+      "/api/v2/chat/channels/{type}/{id}/pinned_messages",
       { type: args.channel_type, id: args.channel_id },
       {
         payload: JSON.stringify(
           defined({
-            state: true,
-            messages_limit: 1,
-            members_limit: 1,
+            limit: args.limit ?? 25,
+            sort: [{ field: "pinned_at", direction: -1 }],
             user_id: args.user_id,
           })
         ),
       }
     );
-    const pinned = response.pinned_messages ?? [];
     return {
-      pinned_messages: pinned.slice(0, args.limit ?? 25),
-      total: pinned.length,
+      pinned_messages: response.messages ?? [],
     };
   },
 });

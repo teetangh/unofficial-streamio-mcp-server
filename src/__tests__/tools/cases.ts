@@ -475,29 +475,31 @@ export const messageCases: ToolCase[] = [
   },
   {
     tool: "chat_get_pinned_messages",
-    args: { ...CHANNEL, user_id: "alice" },
-    // Read via GET /channels/{type}/{id} so an unknown channel 404s instead
-    // of creating a phantom channel under `readOnlyHint: true`.
+    args: { ...CHANNEL, limit: 50, user_id: "alice" },
+    // Read via GET /channels/{type}/{id}/pinned_messages with a JSON `payload`
+    // query param so an unknown channel 404s without creating a phantom channel
+    // and `limit` is honored beyond channel state's 10-pin cap.
     path: "apiClient.sendRequest",
     payload: [
       "GET",
-      "/api/v2/chat/channels/{type}/{id}",
+      "/api/v2/chat/channels/{type}/{id}/pinned_messages",
       { type: "messaging", id: "general" },
       {
         payload: JSON.stringify({
-          state: true,
-          messages_limit: 1,
-          members_limit: 1,
+          limit: 50,
+          sort: [{ field: "pinned_at", direction: -1 }],
           user_id: "alice",
         }),
       },
     ],
     overrides: {
-      "apiClient.sendRequest": Promise.resolve({ pinned_messages: [{ id: "m1" }] }),
+      "apiClient.sendRequest": Promise.resolve({ messages: [{ id: "m1" }] }),
     },
     assert: (_call, result) => {
-      const value = result as { total: number };
-      if (value.total !== 1) throw new Error("pinned message not surfaced");
+      const value = result as { pinned_messages: { id: string }[] };
+      if (value.pinned_messages.length !== 1 || value.pinned_messages[0].id !== "m1") {
+        throw new Error("pinned message not surfaced");
+      }
     },
   },
   {
