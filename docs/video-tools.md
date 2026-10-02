@@ -4,7 +4,7 @@
 
 Tools for calls, participants, recording, broadcasting and app configuration. Toolsets: `video`, `video-admin`, `app`.
 
-## Toolset `video` (35 tools)
+## Toolset `video` (44 tools)
 
 ### `video_create_call` — idempotent
 
@@ -398,7 +398,113 @@ Stop every RTMP broadcast running on a call.
 | `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
 | `call_id` | string | **yes** | Call ID |
 
-## Toolset `video-admin` (8 tools)
+### `video_get_active_calls_status` — read-only, idempotent
+
+Get a real-time summary of currently active calls and participant counts across the application.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| _(none)_ | | | |
+
+### `video_query_aggregate_call_stats` — read-only, idempotent
+
+Query application-wide aggregated call statistics and quality reports over a date range.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `from` | string | no | Start of the reporting window (date or ISO-8601 timestamp) |
+| `to` | string | no | End of the reporting window (date or ISO-8601 timestamp) |
+| `report_types` | string[] | no | Specific aggregate report types to include |
+
+### `video_query_call_session_stats` — read-only, idempotent
+
+Query per-session call statistics and quality metrics with optional filtering, sorting and pagination.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `filter_conditions` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
+| `sort` | object[] | no | Sort parameters, applied in order |
+| `limit` | integer | no | Max results to return (default: 25, max: 100) |
+| `next` | string | no | Cursor from a previous response's `next` field |
+| `prev` | string | no | Cursor from a previous response's `prev` field |
+
+### `video_query_call_participant_stats` — read-only, idempotent
+
+Query per-participant quality and connection statistics for a specific call session.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `session` | string | **yes** | Call session ID |
+| `filter_conditions` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
+| `sort` | object[] | no | Sort parameters, applied in order |
+| `limit` | integer | no | Max results to return (default: 25, max: 100) |
+| `next` | string | no | Cursor from a previous response's `next` field |
+| `prev` | string | no | Cursor from a previous response's `prev` field |
+
+### `video_get_participant_stats_timeline` — read-only, idempotent
+
+Get the chronological timeline of events and quality metrics for a participant in a call session.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `session` | string | **yes** | Call session ID |
+| `user` | string | **yes** | User ID of the participant |
+| `user_session` | string | **yes** | Participant's user session ID |
+| `start_time` | string | no | ISO-8601 start timestamp to filter timeline events |
+| `end_time` | string | no | ISO-8601 end timestamp to filter timeline events |
+| `severity` | string[] | no | Filter timeline events by severity levels, e.g. ['warning', 'error'] |
+
+### `video_query_user_feedback` — read-only, idempotent
+
+Query user ratings and feedback submitted for calls, with optional filtering, sorting and pagination.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `filter_conditions` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
+| `sort` | object[] | no | Sort parameters, applied in order |
+| `limit` | integer | no | Max results to return (default: 25, max: 100) |
+| `next` | string | no | Cursor from a previous response's `next` field |
+| `prev` | string | no | Cursor from a previous response's `prev` field |
+| `full` | boolean | no | Include full call and session details with each feedback entry |
+
+### `video_start_frame_recording` — idempotent
+
+Start capturing periodic video frames from an active call for moderation or analysis.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `recording_external_storage` | string | no | Name of a configured external storage target for recorded frames |
+
+### `video_stop_frame_recording` — idempotent
+
+Stop an in-progress periodic video frame recording on a call.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+
+### `video_send_closed_caption`
+
+Send a live closed caption segment to an active call on behalf of a speaker.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `text` | string | **yes** | Closed caption text |
+| `speaker_id` | string | **yes** | Identifier of the speaker |
+| `user_id` | string | **yes** | User ID attributed to the caption |
+| `language` | string | no | Language code of the caption text |
+| `translated` | boolean | no | Whether the caption text is a translation of the original speech |
+
+## Toolset `video-admin` (15 tools)
 
 ### `video_get_call_report` — read-only, idempotent
 
@@ -476,7 +582,75 @@ Delete a custom call type. Fails if calls of that type still exist. Built-in typ
 | --- | --- | --- | --- |
 | `name` | string | **yes** | Call type name to delete |
 
-## Toolset `app` (4 tools)
+### `video_list_sip_trunks` — read-only, idempotent
+
+List all inbound SIP trunks configured for the application.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| _(none)_ | | | |
+
+### `video_create_sip_trunk`
+
+Create an inbound SIP trunk with associated phone numbers and optional IP allowlist.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | **yes** | Name of the SIP trunk |
+| `numbers` | string[] | **yes** | Phone numbers associated with this SIP trunk |
+| `allowed_ips` | string[] | no | Allowed IPv4/IPv6 addresses or CIDR blocks |
+| `password` | string | no | Password for SIP trunk authentication |
+
+### `video_update_sip_trunk` — idempotent
+
+Update an existing inbound SIP trunk's name, phone numbers, allowed IPs or password.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | **yes** | SIP trunk ID to update |
+| `name` | string | no | Updated name of the SIP trunk |
+| `numbers` | string[] | no | Updated phone numbers associated with this SIP trunk |
+| `allowed_ips` | string[] | no | Updated allowed IPv4/IPv6 addresses or CIDR blocks |
+| `password` | string | no | Updated password for SIP trunk authentication |
+
+### `video_delete_sip_trunk` — **destructive**, idempotent
+
+Permanently delete an inbound SIP trunk by its unique ID.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | **yes** | SIP trunk ID to delete |
+
+### `video_list_sip_routing_rules` — read-only, idempotent
+
+List all inbound SIP routing rules that map incoming calls to Stream video calls.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| _(none)_ | | | |
+
+### `video_create_sip_routing_rule`
+
+Create an inbound SIP routing rule that routes calls from SIP trunks to Stream video calls.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | **yes** | Name of the SIP inbound routing rule |
+| `trunk_ids` | string[] | **yes** | SIP trunk IDs this routing rule applies to |
+| `called_numbers` | string[] | no | Dialed phone numbers matched by this rule |
+| `caller_numbers` | string[] | no | Caller phone numbers matched by this rule |
+| `call_configs` | object | **yes** | Target Stream call configuration for routed SIP calls |
+| `caller_configs` | object | **yes** | Caller user creation and mapping configuration for routed SIP calls |
+
+### `video_delete_sip_routing_rule` — **destructive**, idempotent
+
+Permanently delete an inbound SIP routing rule by its unique ID.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | **yes** | SIP routing rule ID to delete |
+
+## Toolset `app` (19 tools)
 
 ### `app_get_settings` — read-only, idempotent
 
@@ -510,5 +684,154 @@ Poll an asynchronous task started by chat_export_channels or users_delete. Retur
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `task_id` | string | **yes** | Task ID returned by the operation |
+
+### `app_list_roles` — read-only, idempotent
+
+List all built-in and custom roles defined in the Stream application.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| _(none)_ | | | |
+
+### `app_create_role`
+
+Create a new custom role in the Stream application that can be assigned to users or members.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | **yes** | Name of the custom role to create |
+
+### `app_delete_role` — **destructive**, idempotent
+
+Delete a custom role from the Stream application by its name. Built-in roles cannot be deleted.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | **yes** | Name of the custom role to delete |
+
+### `app_list_permissions` — read-only, idempotent
+
+List all available permissions in the Stream application that can be granted to roles.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| _(none)_ | | | |
+
+### `app_get_permission` — read-only, idempotent
+
+Retrieve details of a specific permission by its ID, including its condition and action definition.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | **yes** | Permission ID to retrieve |
+
+### `app_list_push_providers` — read-only, idempotent
+
+List all configured push notification providers (APN, Firebase, Huawei, Xiaomi, webhook) on the app.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| _(none)_ | | | |
+
+### `app_upsert_push_provider` — idempotent
+
+Create or update a named push notification provider configuration (APN, Firebase, Huawei, Xiaomi, or webhook).
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `type` | `apn` \| `firebase` \| `huawei` \| `xiaomi` \| `webhook` | **yes** | Push notification provider type |
+| `name` | string | **yes** | Unique name for this push provider configuration |
+| `description` | string | no | Human-readable description of the push provider |
+| `disabled_at` | string | no | ISO-8601 timestamp if the provider is disabled |
+| `disabled_reason` | string | no | Reason the push provider was disabled |
+| `firebase_credentials` | string | no | Firebase service account credentials JSON string |
+| `apn_auth_key` | string | no | APNs .p8 authentication key content |
+| `apn_key_id` | string | no | APNs key ID |
+| `apn_team_id` | string | no | Apple developer team ID |
+| `apn_topic` | string | no | APNs bundle identifier / topic |
+| `apn_development` | boolean | no | Whether to use the APNs development/sandbox environment |
+
+### `app_delete_push_provider` — **destructive**, idempotent
+
+Delete a named push notification provider configuration from the Stream application.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `type` | `apn` \| `firebase` \| `huawei` \| `xiaomi` \| `webhook` | **yes** | Push notification provider type |
+| `name` | string | **yes** | Push provider name to delete |
+
+### `app_check_push`
+
+Test push notification delivery and template rendering for a user or message across configured push providers.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `user_id` | string | no | User ID whose devices to test push delivery against |
+| `message_id` | string | no | Message ID to render and test push payload for |
+| `push_provider_type` | `apn` \| `firebase` \| `huawei` \| `xiaomi` \| `webhook` | no | Push notification provider type |
+| `push_provider_name` | string | no | Named push provider configuration to test |
+| `skip_devices` | boolean | no | Skip device lookup and only validate template rendering |
+| `event_type` | `message.new` \| `message.updated` \| `reaction.new` | no | Event type to render push template for |
+
+### `app_verify_webhook` — read-only, idempotent
+
+Verify the HMAC-SHA256 X-Signature header of an incoming Stream webhook payload against the app's API secret.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `raw_body` | string | **yes** | Raw HTTP request body string signed by Stream |
+| `signature` | string | **yes** | Hex signature from the X-Signature HTTP header |
+
+### `app_list_external_storage` — read-only, idempotent
+
+List all external storage buckets (S3, GCS, Azure Blob) configured on the Stream application.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| _(none)_ | | | |
+
+### `app_create_external_storage`
+
+Register an external cloud storage bucket (AWS S3, Google Cloud Storage, or Azure Blob) for recordings and exports.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | **yes** | Unique name for the external storage configuration |
+| `storage_type` | `s3` \| `gcs` \| `abs` | **yes** | Cloud storage provider type: s3, gcs, or abs |
+| `bucket` | string | **yes** | Bucket or container name on the storage provider |
+| `path` | string | no | Key prefix path inside the bucket for stored files |
+| `gcs_credentials` | string | no | Google Cloud Storage service account JSON credentials string |
+| `aws_s3` | object | no | Amazon S3 region and authentication configuration |
+| `azure_blob` | object | no | Azure Blob Storage account credentials |
+
+### `app_update_external_storage` — idempotent
+
+Update an existing external cloud storage configuration (AWS S3, GCS, or Azure Blob) by name.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | **yes** | Unique name for the external storage configuration |
+| `storage_type` | `s3` \| `gcs` \| `abs` | **yes** | Cloud storage provider type: s3, gcs, or abs |
+| `bucket` | string | **yes** | Bucket or container name on the storage provider |
+| `path` | string | no | Key prefix path inside the bucket for stored files |
+| `gcs_credentials` | string | no | Google Cloud Storage service account JSON credentials string |
+| `aws_s3` | object | no | Amazon S3 region and authentication configuration |
+| `azure_blob` | object | no | Azure Blob Storage account credentials |
+
+### `app_delete_external_storage` — **destructive**, idempotent
+
+Delete an external cloud storage configuration from the Stream application by its name.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | **yes** | Name of the external storage configuration to delete |
+
+### `app_check_external_storage` — read-only, idempotent
+
+Test connectivity and write permissions for a configured external storage bucket by its name.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | **yes** | Name of the external storage configuration to test |
 
 Every tool also accepts `verbose` (boolean) to return the raw Stream response instead of the compacted view.

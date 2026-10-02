@@ -67,6 +67,13 @@ const REJECTIONS: [string, Record<string, unknown>, RegExp][] = [
   ["moderation_update_blocklist", { name: "custom" }, /Nothing to update/],
   // `team` scopes the target blocklist; it is not itself a change.
   ["moderation_update_blocklist", { name: "custom", team: "eng" }, /Nothing to update/],
+  ["chat_update_poll_partial", { poll_id: "p1" }, /`set` or `unset`/],
+  [
+    "chat_cast_poll_vote",
+    { message_id: "m1", poll_id: "p1", user_id: "alice" },
+    /`option_id` or `answer_text`/,
+  ],
+  ["users_update_group", { id: "g1" }, /`name` or `description`/],
 ];
 
 describe("tool input rejections", () => {

@@ -1,10 +1,15 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer, RegisteredTool } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult, ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import type { StreamClient } from "@stream-io/node-sdk";
 import { z } from "zod";
 import { getClient } from "../clients/index.js";
-import type { Toolset } from "../config.js";
-import { getEnabledToolsets, isReadOnly } from "../config.js";
+import {
+  ALL_TOOLSETS,
+  getEnabledToolsets,
+  isDynamicToolsets,
+  isReadOnly,
+  type Toolset,
+} from "../config.js";
 import { shrink, toolError, toolResult } from "../utils/format.js";
 
 /**
@@ -124,8 +129,8 @@ export function registerTool<S extends z.ZodRawShape, R>(
   server: McpServer,
   def: ToolDef<S, R>,
   enabled: ReadonlySet<Toolset>
-): boolean {
-  if (!isRegistrable(def, enabled)) return false;
+): RegisteredTool[] {
+  if (!isRegistrable(def, enabled)) return [];
 
   const inputSchema = {
     ...def.inputSchema,
@@ -144,7 +149,7 @@ export function registerTool<S extends z.ZodRawShape, R>(
         if (deprecatedAs) {
           result.content.unshift({
             type: "text",
-            text: `Note: "${deprecatedAs}" is deprecated and will be removed in 0.4.0. Use "${def.name}".`,
+            text: `Note: "${deprecatedAs}" is deprecated and will be removed in 0.5.0. Use "${def.name}".`,
           });
         }
         return result;
@@ -157,38 +162,129 @@ export function registerTool<S extends z.ZodRawShape, R>(
   // `inputSchema`; ToolDef is generic over that shape, so the two cannot be
   // related without re-deriving the SDK's inference. Runtime behaviour is
   // covered by the round-trip tests in __tests__/server.test.ts.
-  server.registerTool(
-    def.name,
-    {
-      title: def.title,
-      description: def.description,
-      inputSchema,
-      annotations: { title: def.title, ...def.annotations },
-    },
-    makeHandler() as never
-  );
-
-  for (const alias of def.aliases ?? []) {
+  const handles: RegisteredTool[] = [
     server.registerTool(
-      alias,
+      def.name,
       {
-        title: `${def.title} (deprecated)`,
-        description: `Deprecated alias for "${def.name}". ${def.description}`,
+        title: def.title,
+        description: def.description,
         inputSchema,
         annotations: { title: def.title, ...def.annotations },
       },
-      makeHandler(alias) as never
+      makeHandler() as never
+    ),
+  ];
+
+  for (const alias of def.aliases ?? []) {
+    handles.push(
+      server.registerTool(
+        alias,
+        {
+          title: `${def.title} (deprecated)`,
+          description: `Deprecated alias for "${def.name}". ${def.description}`,
+          inputSchema,
+          annotations: { title: def.title, ...def.annotations },
+        },
+        makeHandler(alias) as never
+      )
     );
   }
 
-  return true;
+  return handles;
 }
 
 export function registerTools(server: McpServer, defs: readonly AnyToolDef[]): number {
   const enabled = getEnabledToolsets();
+  const dynamic = isDynamicToolsets();
+  const byToolset = new Map<Toolset, { name: string; handles: RegisteredTool[] }[]>();
   let count = 0;
+
   for (const def of defs) {
-    if (registerTool(server, def, enabled)) count += 1;
+    const handles = registerTool(server, def, enabled);
+    if (handles.length > 0) {
+      count += 1;
+      if (dynamic) {
+        for (const handle of handles) handle.disable();
+      }
+      const list = byToolset.get(def.toolset) ?? [];
+      list.push({ name: def.name, handles });
+      byToolset.set(def.toolset, list);
+    }
   }
+
+  if (dynamic) {
+    server.registerTool(
+      "stream_list_toolsets",
+      {
+        title: "List Stream toolsets",
+        description:
+          "List available Stream MCP toolsets, the number of tools in each, and whether each toolset is currently enabled.",
+        inputSchema: {},
+        annotations: {
+          title: "List Stream toolsets",
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+      },
+      async () => {
+        const toolsets = [...byToolset.entries()].map(([toolset, entries]) => ({
+          toolset,
+          tool_count: entries.length,
+          enabled: entries.every((entry) => entry.handles.every((h) => h.enabled)),
+          tools: entries.map((entry) => entry.name),
+        }));
+        return toolResult({ toolsets });
+      }
+    );
+
+    server.registerTool(
+      "stream_enable_toolset",
+      {
+        title: "Enable Stream toolsets",
+        description:
+          "Enable one or more Stream MCP toolsets on demand so their tools appear in tools/list.",
+        inputSchema: {
+          toolsets: z
+            .array(z.enum(ALL_TOOLSETS))
+            .min(1)
+            .describe("Toolset names to enable, e.g. ['chat', 'moderation']"),
+        },
+        annotations: {
+          title: "Enable Stream toolsets",
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+      },
+      async (args: { toolsets: Toolset[] }) => {
+        const enabledTools: string[] = [];
+        const unavailable: Toolset[] = [];
+        for (const toolset of args.toolsets) {
+          const entries = byToolset.get(toolset);
+          if (!entries) {
+            unavailable.push(toolset);
+            continue;
+          }
+          for (const entry of entries) {
+            for (const handle of entry.handles) handle.enable();
+            enabledTools.push(entry.name);
+          }
+        }
+        if (server.isConnected()) {
+          server.sendToolListChanged();
+        }
+        return toolResult({
+          enabled_toolsets: args.toolsets.filter((t) => !unavailable.includes(t)),
+          ...(unavailable.length > 0 ? { unavailable_toolsets: unavailable } : {}),
+          enabled_tool_count: enabledTools.length,
+          enabled_tools: enabledTools,
+        });
+      }
+    );
+  }
+
   return count;
 }

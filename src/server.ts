@@ -1,5 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createRequire } from "node:module";
+import { getClient } from "./clients/index.js";
+import { registerPrompts } from "./mcp/prompts.js";
+import { registerResources } from "./mcp/resources.js";
 import { registerAllTools } from "./tools/index.js";
 
 const require = createRequire(import.meta.url);
@@ -15,5 +18,7 @@ export function createServer(): { server: McpServer; toolCount: number } {
     version: SERVER_VERSION,
   });
   const toolCount = registerAllTools(server);
+  registerResources(server, getClient);
+  registerPrompts(server);
   return { server, toolCount };
 }

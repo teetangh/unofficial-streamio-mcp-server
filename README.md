@@ -2,7 +2,7 @@
 
 An [MCP](https://modelcontextprotocol.io) server that gives an AI assistant deterministic, typed access to the [Stream.io](https://getstream.io) Chat, Video, Users, Moderation and App APIs.
 
-**118 tools**, every one explicitly schema-checked against Stream's server-side API. No generic HTTP escape hatch.
+**200 tools**, 7 MCP resources/templates, and 4 operational MCP prompts — every one explicitly schema-checked against Stream's server-side API. No generic HTTP escape hatch.
 
 > Unofficial and not affiliated with Stream.
 
@@ -43,28 +43,32 @@ claude mcp add stream-io -e STREAM_API_KEY=... -e STREAM_API_SECRET=... -- npx -
 
 ### Environment variables
 
-| Variable                        | Default | Purpose                                                                                               |
-| ------------------------------- | ------- | ----------------------------------------------------------------------------------------------------- |
-| `STREAM_API_KEY`                | —       | **Required.** Stream app key.                                                                         |
-| `STREAM_API_SECRET`             | —       | **Required.** Stream app secret. Grants full admin access to the app.                                 |
-| `STREAM_MCP_TOOLSETS`           | `all`   | Comma-separated subset of `chat`, `chat-admin`, `video`, `video-admin`, `moderation`, `users`, `app`. |
-| `STREAM_MCP_READ_ONLY`          | `false` | Register only tools annotated read-only.                                                              |
-| `STREAM_TIMEOUT_MS`             | `15000` | Request timeout.                                                                                      |
-| `STREAM_MCP_MAX_RESPONSE_BYTES` | `30000` | Cap on a single tool result.                                                                          |
-| `STREAM_BASE_URL`               | —       | Override the Stream API base URL.                                                                     |
+| Variable                        | Default | Purpose                                                                                                    |
+| ------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------- |
+| `STREAM_API_KEY`                | —       | **Required.** Stream app key.                                                                              |
+| `STREAM_API_SECRET`             | —       | **Required.** Stream app secret. Grants full admin access to the app.                                      |
+| `STREAM_MCP_TOOLSETS`           | `all`   | Comma-separated subset of `chat`, `chat-admin`, `video`, `video-admin`, `moderation`, `users`, `app`.      |
+| `STREAM_MCP_READ_ONLY`          | `false` | Register only tools annotated read-only.                                                                   |
+| `STREAM_MCP_DYNAMIC_TOOLSETS`   | `false` | Start with 2 discovery meta-tools (`stream_list_toolsets`, `stream_enable_toolset`) for on-demand loading. |
+| `STREAM_TIMEOUT_MS`             | `15000` | Request timeout.                                                                                           |
+| `STREAM_MCP_MAX_RESPONSE_BYTES` | `30000` | Cap on a single tool result.                                                                               |
+| `STREAM_BASE_URL`               | —       | Override the Stream API base URL.                                                                          |
 
 The server starts and lists its tools without credentials, so tool discovery works before setup; individual calls then fail with a clear message.
 
 ### Keeping the tool surface small
 
-The full set of 118 tools is roughly 148 KB of JSON Schema in every session. Two knobs:
+Three knobs keep context token usage low when your session only needs part of the API:
 
 ```jsonc
-// Only chat + users — 49 tools
+// Only chat + users — 80 tools
 "env": { "STREAM_MCP_TOOLSETS": "chat,users" }
 
-// Read-only: 38 tools, nothing that writes. Recommended for production apps.
+// Read-only: 74 tools, nothing that writes. Recommended for production apps.
 "env": { "STREAM_MCP_READ_ONLY": "true" }
+
+// Dynamic toolsets: starts with 2 meta-tools and enables toolsets on demand
+"env": { "STREAM_MCP_DYNAMIC_TOOLSETS": "true" }
 ```
 
 ## Safety
@@ -77,15 +81,15 @@ The API secret is an **admin credential** for the entire Stream app. This server
 
 ## Tools
 
-| Toolset       | Tools | Covers                                                           |
-| ------------- | ----- | ---------------------------------------------------------------- |
-| `chat`        | 35    | Channels, messages, threads, reactions, search, read state       |
-| `chat-admin`  | 6     | Channel types, exports                                           |
-| `users`       | 14    | User CRUD, tokens, guests, blocks, deactivation                  |
-| `moderation`  | 16    | Bans, mutes, flags, review queue, blocklists, policy checks      |
-| `video`       | 35    | Calls, members, participants, recording, transcription, HLS/RTMP |
-| `video-admin` | 8     | Call types, reports, stats, edges                                |
-| `app`         | 4     | App settings, rate limits, async tasks                           |
+| Toolset       | Tools | Covers                                                                                             |
+| ------------- | ----- | -------------------------------------------------------------------------------------------------- |
+| `chat`        | 54    | Channels, messages, threads, reactions, search, read state, polls, reminders, drafts               |
+| `chat-admin`  | 14    | Channel types, exports, slash commands, push templates, batch channel delete                       |
+| `users`       | 26    | User CRUD, tokens, guests, blocks, deactivation, push devices, user groups                         |
+| `moderation`  | 28    | Bans, mutes, flags, review queue, blocklists, policy checks, configs, rules, appeals               |
+| `video`       | 44    | Calls, members, participants, recording, transcription, HLS/RTMP, quality stats, closed captions   |
+| `video-admin` | 15    | Call types, SIP inbound trunks, SIP routing rules                                                  |
+| `app`         | 19    | App settings, rate limits, async tasks, roles, permissions, push providers, webhooks, ext. storage |
 
 Full per-tool parameter reference (generated from the registry, never hand-edited):
 
@@ -93,6 +97,23 @@ Full per-tool parameter reference (generated from the registry, never hand-edite
 - [docs/video-tools.md](docs/video-tools.md) — video, video-admin, app
 
 Every tool also accepts `verbose: true` to bypass response compaction and return the raw Stream payload.
+
+## MCP Resources & Prompts
+
+### Resources (`stream://...`)
+
+- `stream://app/settings` — Application-wide settings, webhooks, push config, and defaults
+- `stream://app/rate-limits` — Consumed server-side API rate-limit quotas
+- `stream://chat/channel-types` and `stream://chat/channel-types/{name}` — Chat channel types and per-type grants/commands
+- `stream://video/call-types` and `stream://video/call-types/{name}` — Video call types and per-type recording/permission settings
+- `stream://moderation/blocklists` — Configured word blocklists
+
+### Prompts
+
+- `moderation-triage` — Inspect pending review queue items, flags, and logs before proposing moderation actions
+- `call-quality-debug` — Diagnose a Stream Video call's quality score, session metrics, timeline events, and call-type config
+- `channel-incident-debug` — Audit a Chat channel's state, membership, pinned messages, channel-type grants, and active bans
+- `rate-limit-diagnosis` — Check consumed server-side and client-side API rate-limit buckets and suggest mitigations
 
 ### Response compaction
 
