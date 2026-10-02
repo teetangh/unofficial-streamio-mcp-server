@@ -1568,10 +1568,20 @@ export const platformCases: ToolCase[] = [
   { tool: "app_list_push_providers", args: {}, path: "listPushProviders", payload: undefined },
   {
     tool: "app_upsert_push_provider",
-    args: { type: "firebase", name: "fcm-main", firebase_credentials: "{}" },
+    args: {
+      type: "firebase",
+      name: "fcm-main",
+      firebase_credentials: "{}",
+      disabled_at: "2026-09-01T15:00:00Z",
+    },
     path: "upsertPushProvider",
     payload: {
-      push_provider: { type: "firebase", name: "fcm-main", firebase_credentials: "{}" },
+      push_provider: {
+        type: "firebase",
+        name: "fcm-main",
+        firebase_credentials: "{}",
+        disabled_at: new Date("2026-09-01T15:00:00Z"),
+      },
     },
   },
   {

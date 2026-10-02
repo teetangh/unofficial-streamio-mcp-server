@@ -90,7 +90,7 @@ An unknown name fails at startup rather than being ignored.
 
 ## Safety
 
-`STREAM_MCP_READ_ONLY=true` registers only the 74 tools annotated `readOnlyHint` — nothing that writes, deletes, bans or mints a token. Use it whenever the credentials belong to a production app.
+`STREAM_MCP_READ_ONLY=true` registers only the 73 tools annotated `readOnlyHint` — nothing that writes, deletes, bans or mints a token. Use it whenever the credentials belong to a production app.
 
 Destructive tools carry `destructiveHint: true`, so clients that gate on annotations can prompt before running them.
 

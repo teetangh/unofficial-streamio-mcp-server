@@ -826,7 +826,7 @@ Delete an external cloud storage configuration from the Stream application by it
 | --- | --- | --- | --- |
 | `name` | string | **yes** | Name of the external storage configuration to delete |
 
-### `app_check_external_storage` — read-only, idempotent
+### `app_check_external_storage` — idempotent
 
 Test connectivity and write permissions for a configured external storage bucket by its name.
 

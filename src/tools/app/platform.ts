@@ -160,7 +160,10 @@ const upsertPushProvider = defineTool({
     type: pushProviderTypeEnum,
     name: z.string().min(1).describe("Unique name for this push provider configuration"),
     description: z.string().optional().describe("Human-readable description of the push provider"),
-    disabled_at: z.string().optional().describe("ISO-8601 timestamp if the provider is disabled"),
+    disabled_at: z.iso
+      .datetime({ offset: true })
+      .optional()
+      .describe("ISO-8601 timestamp if the provider is disabled"),
     disabled_reason: z.string().optional().describe("Reason the push provider was disabled"),
     firebase_credentials: z
       .string()
@@ -181,7 +184,7 @@ const upsertPushProvider = defineTool({
         type: args.type,
         name: args.name,
         description: args.description,
-        disabled_at: args.disabled_at as unknown as Date | undefined,
+        disabled_at: args.disabled_at ? new Date(args.disabled_at) : undefined,
         disabled_reason: args.disabled_reason,
         firebase_credentials: args.firebase_credentials,
         apn_auth_key: args.apn_auth_key,
@@ -369,7 +372,7 @@ const checkExternalStorage = defineTool({
   description:
     "Test connectivity and write permissions for a configured external storage bucket by its name.",
   annotations: {
-    readOnlyHint: true,
+    readOnlyHint: false,
     destructiveHint: false,
     idempotentHint: true,
     openWorldHint: true,
