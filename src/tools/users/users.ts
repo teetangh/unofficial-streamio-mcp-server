@@ -142,7 +142,6 @@ const upsertUsers = defineTool({
     idempotentHint: true,
     openWorldHint: true,
   },
-  aliases: ["users_upsert"],
   inputSchema: {
     users: z.array(userSchema).min(1).max(100).describe("Users to create or update (max 100)"),
   },
@@ -171,7 +170,6 @@ const queryUsers = defineTool({
     idempotentHint: true,
     openWorldHint: true,
   },
-  aliases: ["users_query"],
   inputSchema: {
     filter_conditions: filterConditions,
     sort: sortParams,

@@ -59,7 +59,6 @@ const banUser = defineTool({
     idempotentHint: true,
     openWorldHint: true,
   },
-  aliases: ["chat_ban_user"],
   inputSchema: {
     target_user_id: z.string().min(1).describe("User ID to ban"),
     // Stream rejects a server-side ban without an acting user:
@@ -112,7 +111,6 @@ const unbanUser = defineTool({
     idempotentHint: true,
     openWorldHint: true,
   },
-  aliases: ["chat_unban_user"],
   inputSchema: {
     target_user_id: z.string().min(1).describe("User ID to unban"),
     channel_cid: z
@@ -152,7 +150,6 @@ const flagContent = defineTool({
     idempotentHint: false,
     openWorldHint: true,
   },
-  aliases: ["chat_flag_message"],
   inputSchema: {
     entity_id: z.string().min(1).describe("ID of the entity to flag (a message ID for messages)"),
     entity_type: z

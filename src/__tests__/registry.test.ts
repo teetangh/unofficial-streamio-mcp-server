@@ -105,9 +105,12 @@ describe("tool registry", () => {
     }
   });
 
-  it("resolves tools by name and by deprecated alias", () => {
+  it("resolves tools by name and does not expose removed 0.1.0 aliases", () => {
     expect(getTool("moderation_ban_user")?.name).toBe("moderation_ban_user");
-    expect(getTool("chat_ban_user")?.name).toBe("moderation_ban_user");
+    expect(getTool("chat_ban_user")).toBeUndefined();
+    expect(getTool("auth_create_user_token")).toBeUndefined();
+    expect(getTool("users_upsert")).toBeUndefined();
+    expect(getTool("users_query")).toBeUndefined();
     expect(getTool("nope")).toBeUndefined();
   });
 

@@ -57,29 +57,30 @@ Or commit a `.mcp.json` with the same `mcpServers` block. Use `${STREAM_API_KEY}
 
 ## Environment variables
 
-| Variable                        | Default | Purpose                           |
-| ------------------------------- | ------- | --------------------------------- |
-| `STREAM_API_KEY`                | —       | **Required.** Stream app key.     |
-| `STREAM_API_SECRET`             | —       | **Required.** Stream app secret.  |
-| `STREAM_MCP_TOOLSETS`           | `all`   | Which tool groups to register.    |
-| `STREAM_MCP_READ_ONLY`          | `false` | Register only read-only tools.    |
-| `STREAM_TIMEOUT_MS`             | `15000` | Request timeout in milliseconds.  |
-| `STREAM_MCP_MAX_RESPONSE_BYTES` | `30000` | Cap on one tool result.           |
-| `STREAM_BASE_URL`               | —       | Override the Stream API base URL. |
+| Variable                        | Default | Purpose                                                                 |
+| ------------------------------- | ------- | ----------------------------------------------------------------------- |
+| `STREAM_API_KEY`                | —       | **Required.** Stream app key.                                           |
+| `STREAM_API_SECRET`             | —       | **Required.** Stream app secret.                                        |
+| `STREAM_MCP_TOOLSETS`           | `all`   | Which tool groups to register.                                          |
+| `STREAM_MCP_READ_ONLY`          | `false` | Register only read-only tools.                                          |
+| `STREAM_MCP_DYNAMIC_TOOLSETS`   | `false` | Expose `stream_list_toolsets` / `stream_enable_toolset` on-demand mode. |
+| `STREAM_TIMEOUT_MS`             | `15000` | Request timeout in milliseconds.                                        |
+| `STREAM_MCP_MAX_RESPONSE_BYTES` | `30000` | Cap on one tool result.                                                 |
+| `STREAM_BASE_URL`               | —       | Override the Stream API base URL.                                       |
 
 Invalid values fail fast with a message naming the variable.
 
 ## Toolsets
 
-| Toolset       | Tools | Covers                                                           |
-| ------------- | ----- | ---------------------------------------------------------------- |
-| `chat`        | 35    | Channels, messages, threads, reactions, search, read state       |
-| `chat-admin`  | 6     | Channel types, exports                                           |
-| `users`       | 14    | User CRUD, tokens, guests, blocks, deactivation                  |
-| `moderation`  | 16    | Bans, mutes, flags, review queue, blocklists, policy checks      |
-| `video`       | 35    | Calls, members, participants, recording, transcription, HLS/RTMP |
-| `video-admin` | 8     | Call types, reports, stats, edges                                |
-| `app`         | 4     | App settings, rate limits, async tasks                           |
+| Toolset       | Tools | Covers                                                                                             |
+| ------------- | ----- | -------------------------------------------------------------------------------------------------- |
+| `chat`        | 54    | Channels, messages, threads, reactions, search, read state, polls, reminders, drafts               |
+| `chat-admin`  | 14    | Channel types, exports, slash commands, push templates, batch channel delete                       |
+| `users`       | 26    | User CRUD, tokens, guests, blocks, deactivation, push devices, user groups                         |
+| `moderation`  | 28    | Bans, mutes, flags, review queue, blocklists, policy checks, configs, rules, appeals               |
+| `video`       | 44    | Calls, members, participants, recording, transcription, HLS/RTMP, quality stats, closed captions   |
+| `video-admin` | 15    | Call types, SIP inbound trunks, SIP routing rules                                                  |
+| `app`         | 19    | App settings, rate limits, async tasks, roles, permissions, push providers, webhooks, ext. storage |
 
 ```json
 "env": { "STREAM_MCP_TOOLSETS": "chat,users,moderation" }
@@ -89,7 +90,7 @@ An unknown name fails at startup rather than being ignored.
 
 ## Safety
 
-`STREAM_MCP_READ_ONLY=true` registers only the 38 tools annotated `readOnlyHint` — nothing that writes, deletes, bans or mints a token. Use it whenever the credentials belong to a production app.
+`STREAM_MCP_READ_ONLY=true` registers only the 74 tools annotated `readOnlyHint` — nothing that writes, deletes, bans or mints a token. Use it whenever the credentials belong to a production app.
 
 Destructive tools carry `destructiveHint: true`, so clients that gate on annotations can prompt before running them.
 

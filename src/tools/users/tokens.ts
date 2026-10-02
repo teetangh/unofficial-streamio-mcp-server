@@ -22,7 +22,6 @@ const createUserToken = defineTool({
     idempotentHint: false,
     openWorldHint: false,
   },
-  aliases: ["auth_create_user_token"],
   inputSchema: {
     user_id: z.string().min(1).describe("User ID the token is for"),
     validity_in_seconds: validity,

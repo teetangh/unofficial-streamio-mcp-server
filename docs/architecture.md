@@ -9,17 +9,20 @@ src/
   config.ts              # environment parsing: toolsets, timeouts, caps
   clients/
     stream-client.ts     # lazy StreamClient singleton
+  mcp/
+    resources.ts         # read-only MCP resources and URI templates
+    prompts.ts           # guided operational MCP prompts
   schemas/
     common.ts            # shared zod fragments (channelRef, callRef, sort, limits)
   tools/
     define.ts            # ToolDef type + registerTool: the only place cross-cutting
                          #   behaviour lives (client lookup, errors, compaction, gating)
     registry.ts          # ALL_TOOLS — the flat, introspectable list
-    chat/                # channels.ts, messages.ts, admin.ts
-    video/               # calls.ts, participants.ts, media.ts, admin.ts
-    users/               # users.ts, tokens.ts
-    moderation/          # moderation.ts, blocklists.ts
-    app/                 # app.ts
+    chat/                # channels.ts, messages.ts, polls.ts, admin.ts, commands.ts
+    video/               # calls.ts, participants.ts, media.ts, admin.ts, analytics.ts
+    users/               # users.ts, tokens.ts, devices.ts
+    moderation/          # moderation.ts, blocklists.ts, policies.ts
+    app/                 # app.ts, platform.ts
   utils/
     errors.ts            # StreamError → actionable text; ToolInputError
     format.ts            # response compaction, byte cap, MCP result wrappers
@@ -51,6 +54,7 @@ defineTool({
 - converts thrown errors into `isError` tool results via `formatErrorMessage`,
 - applies response compaction unless `verbose` or `compact: false`,
 - skips tools outside `STREAM_MCP_TOOLSETS`, or non-read-only tools under `STREAM_MCP_READ_ONLY`,
+- supports on-demand toolset activation via `stream_list_toolsets` / `stream_enable_toolset` when `STREAM_MCP_DYNAMIC_TOOLSETS=true`,
 - registers deprecated aliases with a deprecation notice prepended to the result.
 
 The payoff is that a tool module contains only its schema and the request it builds — which is exactly what the tests assert.
@@ -81,7 +85,7 @@ Request-side defaults matter as much: `chat_query_channels` sends `message_limit
 
 - `registry.test.ts` — table checks over `ALL_TOOLS`: unique names, valid prefixes and toolsets, annotations present and consistent, no tool declares `verbose` itself.
 - `server.test.ts` — a real `Client` over `InMemoryTransport`. This is the only layer that exercises zod validation, so schema regressions surface here.
-- `tools/payloads.test.ts` — every one of the 118 tools is invoked against a recording mock `StreamClient` and asserted against the **exact** payload it should send. A coverage test fails if a new tool has no case.
+- `tools/payloads.test.ts` — every one of the 200 tools is invoked against a recording mock `StreamClient` and asserted against the **exact** payload it should send. A coverage test fails if a new tool has no case.
 - `tools/rejections.test.ts` — the cross-field rules, asserting no SDK call is made.
 - `tools/compaction.test.ts` — every bespoke `compact` projection, driven through `applyCompaction` so the `verbose` and default-`shrink` branches are covered too.
 - `integration/*.live.test.ts` — real Stream API, namespaced `mcptest-*` fixtures, teardown in `afterAll`. Skipped without credentials.
