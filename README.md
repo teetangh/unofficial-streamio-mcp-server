@@ -64,7 +64,7 @@ Three knobs keep context token usage low when your session only needs part of th
 // Only chat + users — 80 tools
 "env": { "STREAM_MCP_TOOLSETS": "chat,users" }
 
-// Read-only: 74 tools, nothing that writes. Recommended for production apps.
+// Read-only: 73 tools, nothing that writes. Recommended for production apps.
 "env": { "STREAM_MCP_READ_ONLY": "true" }
 
 // Dynamic toolsets: starts with 2 meta-tools and enables toolsets on demand
