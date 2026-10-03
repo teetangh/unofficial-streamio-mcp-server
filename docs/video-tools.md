@@ -61,7 +61,7 @@ Search and filter calls. Common filters: {ongoing: {$eq: true}} for live calls, 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `filter_conditions` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
-| `sort` | array | no | Sort parameters, applied in order |
+| `sort` | object[] | no | Sort parameters, applied in order |
 | `limit` | integer | no | Max results to return (default: 10, max: 25) |
 | `next` | string | no | Cursor from a previous response's `next` field |
 | `prev` | string | no | Cursor from a previous response's `prev` field |
@@ -113,7 +113,7 @@ Send an incoming-call ring to the call's members, triggering their ringing UI an
 | --- | --- | --- | --- |
 | `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
 | `call_id` | string | **yes** | Call ID |
-| `member_ids` | array | no | Restrict the ring to these member IDs. Omit to ring all members. |
+| `member_ids` | string[] | no | Restrict the ring to these member IDs. Omit to ring all members. |
 | `video` | boolean | no | Ring as a video call rather than audio-only |
 
 ### `video_send_call_event`
@@ -136,7 +136,7 @@ Add, update the role of, or remove members on a call. Adding a member does not a
 | `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
 | `call_id` | string | **yes** | Call ID |
 | `update_members` | array | no | Members to add or update — user IDs or {user_id, role} objects |
-| `remove_members` | array | no | User IDs to remove |
+| `remove_members` | string[] | no | User IDs to remove |
 
 ### `video_query_call_members` — read-only, idempotent
 
@@ -147,7 +147,7 @@ Search and filter the members of a call. Common filters: {role: {$eq: 'host'}}, 
 | `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
 | `call_id` | string | **yes** | Call ID |
 | `filter_conditions` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
-| `sort` | array | no | Sort parameters, applied in order |
+| `sort` | object[] | no | Sort parameters, applied in order |
 | `limit` | integer | no | Max results to return (default: 25, max: 100) |
 | `next` | string | no | Cursor from a previous response's `next` field |
 | `prev` | string | no | Cursor from a previous response's `prev` field |
@@ -180,7 +180,7 @@ Mute participants in a call. Pass `user_ids` for specific people or `mute_all_us
 | --- | --- | --- | --- |
 | `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
 | `call_id` | string | **yes** | Call ID |
-| `user_ids` | array | no | User IDs to mute |
+| `user_ids` | string[] | no | User IDs to mute |
 | `mute_all_users` | boolean | no | Mute every user in the call |
 | `audio` | boolean | no | Mute audio. Default: true. |
 | `video` | boolean | no | Mute video. Default: false. |
@@ -196,7 +196,7 @@ List users connected to a call's active session, filtered by user ID or by which
 | --- | --- | --- | --- |
 | `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
 | `call_id` | string | **yes** | Call ID |
-| `user_ids` | array | no | Restrict to these user IDs |
+| `user_ids` | string[] | no | Restrict to these user IDs |
 | `published_tracks` | array | no | Restrict to participants publishing these track types |
 | `limit` | integer | no | Max results to return (default: 25, max: 100) |
 
@@ -221,8 +221,8 @@ Grant or revoke a user's per-call capabilities. Common permissions: 'send-audio'
 | `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
 | `call_id` | string | **yes** | Call ID |
 | `user_id` | string | **yes** | User whose permissions change |
-| `grant_permissions` | array | no | Permissions to grant |
-| `revoke_permissions` | array | no | Permissions to revoke |
+| `grant_permissions` | string[] | no | Permissions to grant |
+| `revoke_permissions` | string[] | no | Permissions to revoke |
 
 ### `video_pin` — idempotent
 
@@ -377,7 +377,7 @@ Restream a call to external RTMP endpoints such as YouTube Live or Twitch. Each 
 | --- | --- | --- | --- |
 | `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
 | `call_id` | string | **yes** | Call ID |
-| `broadcasts` | array | **yes** | RTMP destinations |
+| `broadcasts` | object[] | **yes** | RTMP destinations |
 
 ### `video_stop_rtmp_broadcast` — idempotent
 
@@ -417,7 +417,7 @@ Query aggregated call quality statistics across calls — one row per call sessi
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `filter_conditions` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
-| `sort` | array | no | Sort parameters, applied in order |
+| `sort` | object[] | no | Sort parameters, applied in order |
 | `limit` | integer | no | Max results to return (default: 10, max: 25) |
 | `next` | string | no | Cursor from a previous response's `next` field |
 | `prev` | string | no | Cursor from a previous response's `prev` field |

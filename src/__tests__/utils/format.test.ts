@@ -80,6 +80,29 @@ describe("shrink", () => {
       call: { id: "x", nested: { keep: 1 } },
     });
   });
+
+  it("preserves user keys inside custom dictionaries even when named like NOISE_KEYS", () => {
+    expect(
+      shrink({
+        id: "c1",
+        config: { automod: "disabled" },
+        custom: {
+          config: { theme: "dark" },
+          thumbnails: ["thumb1.png"],
+          grants: ["vip"],
+          commands: ["deploy"],
+        },
+      })
+    ).toEqual({
+      id: "c1",
+      custom: {
+        config: { theme: "dark" },
+        thumbnails: ["thumb1.png"],
+        grants: ["vip"],
+        commands: ["deploy"],
+      },
+    });
+  });
 });
 
 describe("serialize", () => {

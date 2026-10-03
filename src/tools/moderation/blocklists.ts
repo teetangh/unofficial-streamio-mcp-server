@@ -96,9 +96,12 @@ const updateBlockList = defineTool({
   inputSchema: {
     name: z.string().min(1).describe("Blocklist name"),
     words: z.array(z.string().min(1)).optional().describe("Replacement word list"),
-    is_substring_matching_enabled: z.boolean().optional(),
-    is_plural_check_enabled: z.boolean().optional(),
-    is_leet_check_enabled: z.boolean().optional(),
+    is_substring_matching_enabled: z
+      .boolean()
+      .optional()
+      .describe("Match the words anywhere inside a longer word"),
+    is_plural_check_enabled: z.boolean().optional().describe("Also match plural forms"),
+    is_leet_check_enabled: z.boolean().optional().describe("Also match leetspeak substitutions"),
     team: z.string().optional().describe("Team the blocklist belongs to"),
   },
   handler: async (args, client) => {

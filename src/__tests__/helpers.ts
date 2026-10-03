@@ -1,14 +1,10 @@
 import type { StreamClient } from "@stream-io/node-sdk";
-import { expect, vi } from "vitest";
+import { expect, vi, type Mock } from "vitest";
 import { getTool } from "../tools/registry.js";
 import type { ToolDef } from "../tools/define.js";
 
-/**
- * Invokes a tool's handler directly with a stub client and returns the
- * payload the handler passed to the SDK. Handlers are pure functions of
- * (args, client), so no MCP internals are touched.
- */
-export function callTool(
+/** Invokes a tool's handler directly, bypassing MCP transport. */
+export async function callTool(
   name: string,
   args: Record<string, unknown>,
   client: unknown
@@ -19,7 +15,7 @@ export function callTool(
 }
 
 /** A spy that records its single argument and resolves to `result`. */
-export function spy(result: unknown = { duration: "1ms" }) {
+export function spy(result: unknown = { duration: "1ms" }): Mock {
   return vi.fn().mockResolvedValue(result);
 }
 

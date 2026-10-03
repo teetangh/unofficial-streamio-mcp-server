@@ -60,6 +60,29 @@ function unwrap(schema) {
   return { inner, optional };
 }
 
+function formatJsonType(json) {
+  if (!json || typeof json !== "object") return "any";
+  if (Object.prototype.hasOwnProperty.call(json, "const")) {
+    return `\`${json.const}\``;
+  }
+  if (Array.isArray(json.enum)) {
+    return json.enum.map((value) => `\`${value}\``).join(" \\| ");
+  }
+  if (Array.isArray(json.anyOf)) {
+    const parts = json.anyOf.map((branch) => formatJsonType(branch));
+    return [...new Set(parts)].join(" \\| ");
+  }
+  if (json.type === "array" && json.items && typeof json.items === "object") {
+    const itemType = formatJsonType(json.items);
+    if (itemType !== "any" && !itemType.includes("|")) {
+      return `${itemType}[]`;
+    }
+    return "array";
+  }
+  if (typeof json.type === "string") return json.type;
+  return "any";
+}
+
 function typeName(schema) {
   let json;
   try {
@@ -67,10 +90,7 @@ function typeName(schema) {
   } catch {
     return "any";
   }
-  if (Array.isArray(json.enum)) return json.enum.map((value) => `\`${value}\``).join(" \\| ");
-  if (json.anyOf) return "one of";
-  if (typeof json.type === "string") return json.type;
-  return "any";
+  return formatJsonType(json);
 }
 
 function rows(tool) {

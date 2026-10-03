@@ -410,7 +410,7 @@ const getChannel = defineTool({
       }
     );
     if (args.before_message_id === undefined && args.around_message_id === undefined) {
-      return { ...response.body, metadata: response.metadata };
+      return response;
     }
     return client.chat.getOrCreateChannel({
       type: args.channel_type,

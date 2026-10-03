@@ -31,6 +31,21 @@ describe("tool registry", () => {
     }
   });
 
+  it("gives every input parameter a description so generated docs have no empty cells", () => {
+    type SchemaNode = { description?: string; def?: { innerType?: unknown } };
+    for (const tool of ALL_TOOLS) {
+      for (const [param, rawSchema] of Object.entries(tool.inputSchema)) {
+        let inner: SchemaNode | undefined = rawSchema as SchemaNode;
+        let description = inner.description;
+        for (let depth = 0; depth < 10 && !description && inner?.def?.innerType; depth += 1) {
+          inner = inner.def.innerType as SchemaNode;
+          description = inner?.description;
+        }
+        expect(description?.trim(), `${tool.name}.${param}`).toBeTruthy();
+      }
+    }
+  });
+
   it("never marks a tool both read-only and destructive", () => {
     for (const tool of ALL_TOOLS) {
       if (tool.annotations.readOnlyHint) {

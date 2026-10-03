@@ -73,6 +73,24 @@ describe("MCP server", () => {
     await client.close();
   });
 
+  it("rejects a custom chat event_type containing a dot over MCP transport", async () => {
+    const { client } = await connect();
+
+    const result = await client.callTool({
+      name: "chat_send_event",
+      arguments: {
+        channel_type: "messaging",
+        channel_id: "general",
+        event_type: "typing.start",
+        user_id: "alice",
+      },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toMatch(/Stream reserves the dot character/);
+    await client.close();
+  });
+
   it("rejects a sort direction that is not 1 or -1", async () => {
     const { client } = await connect();
 
