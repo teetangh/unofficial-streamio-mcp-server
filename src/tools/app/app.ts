@@ -69,6 +69,86 @@ const APP_SETTING_KEYS = new Set([
 ]);
 import { defineTool, type AnyToolDef } from "../define.js";
 
+/**
+ * Allowlist of non-secret fields on a Stream push provider object. Using an
+ * allowlist ensures newly added credential fields in future SDK/API versions
+ * are redacted by default in read-only tools and resources.
+ */
+const SAFE_PUSH_PROVIDER_KEYS = new Set([
+  "name",
+  "type",
+  "description",
+  "created_at",
+  "updated_at",
+  "disabled_at",
+  "disabled_reason",
+  "apn_auth_type",
+  "apn_development",
+  "apn_host",
+  "apn_key_id",
+  "apn_notification_template",
+  "apn_sandbox_certificate",
+  "apn_supports_remote_notifications",
+  "apn_supports_voip_notifications",
+  "apn_team_id",
+  "apn_topic",
+  "firebase_apn_template",
+  "firebase_data_template",
+  "firebase_host",
+  "firebase_notification_template",
+  "huawei_app_id",
+  "huawei_host",
+  "xiaomi_package_name",
+  "push_templates",
+]);
+
+export function sanitizePushProvider<T extends object>(provider: T): T {
+  return Object.fromEntries(
+    Object.entries(provider).filter(([key]) => SAFE_PUSH_PROVIDER_KEYS.has(key))
+  ) as T;
+}
+
+function omitKeys<T extends object>(obj: T, keysToOmit: readonly string[]): T {
+  const omitSet = new Set(keysToOmit);
+  return Object.fromEntries(Object.entries(obj).filter(([key]) => !omitSet.has(key))) as T;
+}
+
+function sanitizeAppResponse<T extends GetApplicationResponse>(raw: T): T {
+  if (!raw?.app) return raw;
+  const appWithoutSecrets = omitKeys(raw.app, ["sns_secret", "sqs_secret"]);
+  const push = appWithoutSecrets.push_notifications;
+  const sanitizedPush = push
+    ? {
+        ...push,
+        ...(push.apn ? { apn: omitKeys(push.apn, ["auth_key", "p12_cert"]) } : {}),
+        ...(push.firebase
+          ? { firebase: omitKeys(push.firebase, ["credentials_json", "server_key"]) }
+          : {}),
+        ...(push.huawei ? { huawei: omitKeys(push.huawei, ["secret"]) } : {}),
+        ...(push.xiaomi ? { xiaomi: omitKeys(push.xiaomi, ["secret"]) } : {}),
+        ...(push.providers
+          ? { providers: push.providers.map((provider) => sanitizePushProvider(provider)) }
+          : {}),
+      }
+    : push;
+  const sanitizedHooks = appWithoutSecrets.event_hooks?.map((hook) =>
+    omitKeys(hook, ["sns_secret", "sqs_secret"])
+  );
+  const sanitizedDatadog = appWithoutSecrets.datadog_info
+    ? omitKeys(appWithoutSecrets.datadog_info, ["api_key"])
+    : appWithoutSecrets.datadog_info;
+
+  return {
+    ...raw,
+    app: {
+      ...appWithoutSecrets,
+      ...(sanitizedPush !== undefined ? { push_notifications: sanitizedPush } : {}),
+      ...(sanitizedHooks !== undefined ? { event_hooks: sanitizedHooks } : {}),
+      ...(sanitizedDatadog !== undefined ? { datadog_info: sanitizedDatadog } : {}),
+    },
+  };
+}
+
 const getAppSettings = defineTool({
   name: "app_get_settings",
   title: "Get app settings",
@@ -85,7 +165,8 @@ const getAppSettings = defineTool({
   // The raw payload embeds every channel and call type config (~55KB). Those
   // have dedicated tools, so drop them and keep the app-level settings.
   compact: (raw: GetApplicationResponse) => {
-    const { channel_configs, call_types, policies, grants, ...app } = raw.app;
+    const sanitized = sanitizeAppResponse(raw);
+    const { channel_configs, call_types, policies, grants, ...app } = sanitized.app;
     return {
       app,
       _omitted: {
@@ -98,7 +179,7 @@ const getAppSettings = defineTool({
         "Use chat_get_channel_type / video_get_call_type for the omitted per-type configuration.",
     };
   },
-  handler: async (_args, client) => client.getApp(),
+  handler: async (_args, client) => sanitizeAppResponse(await client.getApp()),
 });
 
 const updateAppSettings = defineTool({
