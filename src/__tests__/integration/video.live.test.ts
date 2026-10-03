@@ -338,6 +338,94 @@ suite("live: video", () => {
     expect(result.duration ?? result.call).toBeDefined();
   });
 
+  it("queries active calls status, aggregate stats, session stats and feedback", async () => {
+    const active = await harness.call("video_get_active_calls_status", {});
+    expect(active.duration).toBeDefined();
+
+    const agg = await harness.call("video_query_aggregate_call_stats", {
+      from: "2026-03-01",
+      to: "2026-03-07",
+    });
+    expect(agg.duration).toBeDefined();
+
+    const sessions = await harness.call("video_query_call_session_stats", { limit: 5 });
+    expect(Array.isArray(sessions.calls)).toBe(true);
+
+    const participants = await harness.call("video_query_call_participant_stats", {
+      ...call,
+      session: "no-such-session",
+    });
+    expect(Array.isArray(participants.participants)).toBe(true);
+
+    const timeline = await harness.callEither("video_get_participant_stats_timeline", {
+      ...call,
+      session: "no-such-session",
+      user: host,
+      user_session: "00000000-0000-0000-0000-000000000000",
+    });
+    expect(timeline.text).not.toMatch(SCHEMA_ERROR);
+
+    const feedback = await harness.call("video_query_user_feedback", { limit: 5 });
+    expect(Array.isArray(feedback.user_feedback)).toBe(true);
+  });
+
+  it("reaches frame recording and closed-caption sending endpoints", async () => {
+    const startFrame = await harness.callEither("video_start_frame_recording", call);
+    expect(startFrame.text).not.toMatch(SCHEMA_ERROR);
+
+    const stopFrame = await harness.callEither("video_stop_frame_recording", call);
+    expect(stopFrame.text).not.toMatch(SCHEMA_ERROR);
+
+    const caption = await harness.callEither("video_send_closed_caption", {
+      ...call,
+      text: "Hello world",
+      speaker_id: host,
+      user_id: host,
+    });
+    expect(caption.text).not.toMatch(SCHEMA_ERROR);
+  });
+
+  it("manages SIP trunks and inbound routing rules", { timeout: 30_000 }, async () => {
+    const trunkName = fixtureId("siptrunk");
+    const createdTrunk = await harness.call("video_create_sip_trunk", {
+      name: trunkName,
+      numbers: ["+15550009876"],
+    });
+    const trunkId: string = createdTrunk.trunk.id;
+    harness.onCleanup(async () => {
+      await harness.callEither("video_delete_sip_trunk", { id: trunkId });
+    });
+
+    const updatedTrunk = await harness.call("video_update_sip_trunk", {
+      id: trunkId,
+      name: `${trunkName}-updated`,
+      numbers: ["+15550009876"],
+      allowed_ips: ["198.51.100.0/24"],
+    });
+    expect(updatedTrunk.trunk.id).toBe(trunkId);
+
+    const trunks = await harness.call("video_list_sip_trunks", {});
+    expect(trunks.trunks.some((t: any) => t.id === trunkId)).toBe(true);
+
+    const ruleName = fixtureId("siprule");
+    const createdRule = await harness.call("video_create_sip_routing_rule", {
+      name: ruleName,
+      trunk_ids: [trunkId],
+      caller_configs: { id: "{{sip.from.user}}" },
+      direct_routing_configs: { call_type: "default", call_id: "sip-{{sip.to.user}}" },
+    });
+    const ruleId: string = createdRule.routing_rule.id;
+    harness.onCleanup(async () => {
+      await harness.callEither("video_delete_sip_routing_rule", { id: ruleId });
+    });
+
+    const rules = await harness.call("video_list_sip_routing_rules", {});
+    expect(rules.routing_rules.some((r: any) => r.id === ruleId)).toBe(true);
+
+    await harness.call("video_delete_sip_routing_rule", { id: ruleId });
+    await harness.call("video_delete_sip_trunk", { id: trunkId });
+  });
+
   it("ends the call", async () => {
     const result = await harness.call("video_end_call", call);
     expect(result.duration).toBeDefined();

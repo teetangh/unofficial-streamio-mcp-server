@@ -1180,21 +1180,21 @@ export const pollCases: ToolCase[] = [
   },
   {
     tool: "chat_update_poll_partial",
-    args: { poll_id: "p1", set: { is_closed: true } },
+    args: { poll_id: "p1", user_id: "alice", set: { is_closed: true } },
     path: "updatePollPartial",
-    payload: { poll_id: "p1", set: { is_closed: true } },
+    payload: { poll_id: "p1", user_id: "alice", set: { is_closed: true } },
   },
   {
     tool: "chat_delete_poll",
-    args: { poll_id: "p1" },
+    args: { poll_id: "p1", user_id: "alice" },
     path: "deletePoll",
-    payload: { poll_id: "p1" },
+    payload: { poll_id: "p1", user_id: "alice" },
   },
   {
     tool: "chat_query_polls",
-    args: { filter: { is_closed: false } },
+    args: { user_id: "alice", filter: { is_closed: false } },
     path: "queryPolls",
-    payload: { filter: { is_closed: false }, limit: 25 },
+    payload: { filter: { is_closed: false }, limit: 25, user_id: "alice" },
   },
   {
     tool: "chat_create_poll_option",
@@ -1204,9 +1204,9 @@ export const pollCases: ToolCase[] = [
   },
   {
     tool: "chat_delete_poll_option",
-    args: { poll_id: "p1", option_id: "opt1" },
+    args: { poll_id: "p1", option_id: "opt1", user_id: "alice" },
     path: "deletePollOption",
-    payload: { poll_id: "p1", option_id: "opt1" },
+    payload: { poll_id: "p1", option_id: "opt1", user_id: "alice" },
   },
   {
     tool: "chat_cast_poll_vote",
@@ -1216,15 +1216,15 @@ export const pollCases: ToolCase[] = [
   },
   {
     tool: "chat_delete_poll_vote",
-    args: { message_id: "m1", poll_id: "p1", vote_id: "v1" },
+    args: { message_id: "m1", poll_id: "p1", vote_id: "v1", user_id: "alice" },
     path: "chat.deletePollVote",
-    payload: { message_id: "m1", poll_id: "p1", vote_id: "v1" },
+    payload: { message_id: "m1", poll_id: "p1", vote_id: "v1", user_id: "alice" },
   },
   {
     tool: "chat_query_poll_votes",
-    args: { poll_id: "p1" },
+    args: { poll_id: "p1", user_id: "alice" },
     path: "queryPollVotes",
-    payload: { poll_id: "p1", limit: 25 },
+    payload: { poll_id: "p1", limit: 25, user_id: "alice" },
   },
   {
     tool: "chat_create_reminder",
@@ -1440,7 +1440,19 @@ export const videoAnalyticsCases: ToolCase[] = [
     tool: "video_query_aggregate_call_stats",
     args: { from: "2026-08-01", to: "2026-08-07" },
     path: "video.queryAggregateCallStats",
-    payload: { from: "2026-08-01", to: "2026-08-07" },
+    payload: {
+      from: "2026-08-01",
+      to: "2026-08-07",
+      report_types: [
+        "call_quality",
+        "user_feedback",
+        "sdk_usage",
+        "network_metrics",
+        "call_duration",
+        "call_participant_count",
+        "calls_per_day",
+      ],
+    },
   },
   {
     tool: "video_query_call_session_stats",
@@ -1482,7 +1494,7 @@ export const videoAnalyticsCases: ToolCase[] = [
     tool: "video_stop_frame_recording",
     args: { ...CALL },
     path: "call.stopFrameRecording",
-    payload: {},
+    payload: undefined,
   },
   {
     tool: "video_send_closed_caption",
@@ -1504,9 +1516,9 @@ export const videoAnalyticsCases: ToolCase[] = [
   },
   {
     tool: "video_update_sip_trunk",
-    args: { id: "tr1", name: "updated-trunk" },
+    args: { id: "tr1", name: "updated-trunk", numbers: ["+15551234567"] },
     path: "video.updateSIPTrunk",
-    payload: { id: "tr1", name: "updated-trunk" },
+    payload: { id: "tr1", name: "updated-trunk", numbers: ["+15551234567"] },
   },
   {
     tool: "video_delete_sip_trunk",
@@ -1525,15 +1537,15 @@ export const videoAnalyticsCases: ToolCase[] = [
     args: {
       name: "inbound-rule",
       trunk_ids: ["tr1"],
-      call_configs: { call_type: "default" },
-      caller_configs: { role: "user" },
+      caller_configs: { id: "{{sip.from.user}}" },
+      direct_routing_configs: { call_type: "default", call_id: "sip-{{sip.to.user}}" },
     },
     path: "video.createSIPInboundRoutingRule",
     payload: {
       name: "inbound-rule",
       trunk_ids: ["tr1"],
-      call_configs: { call_type: "default" },
-      caller_configs: { role: "user" },
+      caller_configs: { id: "{{sip.from.user}}" },
+      direct_routing_configs: { call_type: "default", call_id: "sip-{{sip.to.user}}" },
     },
   },
   {

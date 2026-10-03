@@ -408,13 +408,13 @@ Get a real-time summary of currently active calls and participant counts across 
 
 ### `video_query_aggregate_call_stats` — read-only, idempotent
 
-Query application-wide aggregated call statistics and quality reports over a date range.
+Query application-wide aggregated call statistics and quality reports over a YYYY-MM-DD date range.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `from` | string | no | Start of the reporting window (date or ISO-8601 timestamp) |
-| `to` | string | no | End of the reporting window (date or ISO-8601 timestamp) |
-| `report_types` | string[] | no | Specific aggregate report types to include |
+| `from` | string | no | Start date of the reporting window in YYYY-MM-DD format |
+| `to` | string | no | End date of the reporting window in YYYY-MM-DD format |
+| `report_types` | array | no | Specific aggregate report types to include (defaults to all available report types when omitted) |
 
 ### `video_query_call_session_stats` — read-only, idempotent
 
@@ -601,15 +601,15 @@ Create an inbound SIP trunk with associated phone numbers and optional IP allowl
 | `allowed_ips` | string[] | no | Allowed IPv4/IPv6 addresses or CIDR blocks |
 | `password` | string | no | Password for SIP trunk authentication |
 
-### `video_update_sip_trunk` — idempotent
+### `video_update_sip_trunk` — **destructive**, idempotent
 
-Update an existing inbound SIP trunk's name, phone numbers, allowed IPs or password.
+Replace an existing inbound SIP trunk's name, phone numbers, allowed IPs or password.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | string | **yes** | SIP trunk ID to update |
-| `name` | string | no | Updated name of the SIP trunk |
-| `numbers` | string[] | no | Updated phone numbers associated with this SIP trunk |
+| `name` | string | **yes** | Updated name of the SIP trunk |
+| `numbers` | string[] | **yes** | Updated phone numbers associated with this SIP trunk |
 | `allowed_ips` | string[] | no | Updated allowed IPv4/IPv6 addresses or CIDR blocks |
 | `password` | string | no | Updated password for SIP trunk authentication |
 
@@ -631,7 +631,7 @@ List all inbound SIP routing rules that map incoming calls to Stream video calls
 
 ### `video_create_sip_routing_rule`
 
-Create an inbound SIP routing rule that routes calls from SIP trunks to Stream video calls.
+Create an inbound SIP routing rule that routes calls from SIP trunks to Stream video calls via direct or PIN routing. Requires at least one of direct_routing_configs or pin_routing_configs.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -639,8 +639,11 @@ Create an inbound SIP routing rule that routes calls from SIP trunks to Stream v
 | `trunk_ids` | string[] | **yes** | SIP trunk IDs this routing rule applies to |
 | `called_numbers` | string[] | no | Dialed phone numbers matched by this rule |
 | `caller_numbers` | string[] | no | Caller phone numbers matched by this rule |
-| `call_configs` | object | **yes** | Target Stream call configuration for routed SIP calls |
 | `caller_configs` | object | **yes** | Caller user creation and mapping configuration for routed SIP calls |
+| `call_configs` | object | no | Optional custom data configuration for the routed Stream call |
+| `direct_routing_configs` | object | no | Direct routing configuration mapping inbound SIP calls to a target call |
+| `pin_routing_configs` | object | no | PIN-based routing configuration for inbound SIP calls |
+| `pin_protection_configs` | object | no | PIN protection settings for inbound SIP calls |
 
 ### `video_delete_sip_routing_rule` — **destructive**, idempotent
 
@@ -727,19 +730,19 @@ Retrieve details of a specific permission by its ID, including its condition and
 
 ### `app_list_push_providers` — read-only, idempotent
 
-List all configured push notification providers (APN, Firebase, Huawei, Xiaomi, webhook) on the app.
+List all configured push notification providers (APN, Firebase, Huawei, or Xiaomi) on the app.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | _(none)_ | | | |
 
-### `app_upsert_push_provider` — idempotent
+### `app_upsert_push_provider` — **destructive**, idempotent
 
-Create or update a named push notification provider configuration (APN, Firebase, Huawei, Xiaomi, or webhook).
+Create or replace a named push notification provider configuration (APN, Firebase, Huawei, or Xiaomi).
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `type` | `apn` \| `firebase` \| `huawei` \| `xiaomi` \| `webhook` | **yes** | Push notification provider type |
+| `type` | `apn` \| `firebase` \| `huawei` \| `xiaomi` | **yes** | Push notification provider type |
 | `name` | string | **yes** | Unique name for this push provider configuration |
 | `description` | string | no | Human-readable description of the push provider |
 | `disabled_at` | string | no | ISO-8601 timestamp if the provider is disabled |
@@ -750,6 +753,10 @@ Create or update a named push notification provider configuration (APN, Firebase
 | `apn_team_id` | string | no | Apple developer team ID |
 | `apn_topic` | string | no | APNs bundle identifier / topic |
 | `apn_development` | boolean | no | Whether to use the APNs development/sandbox environment |
+| `huawei_app_id` | string | no | Huawei Push Kit application ID |
+| `huawei_app_secret` | string | no | Huawei Push Kit application secret |
+| `xiaomi_package_name` | string | no | Xiaomi application package name |
+| `xiaomi_app_secret` | string | no | Xiaomi Push application secret |
 
 ### `app_delete_push_provider` — **destructive**, idempotent
 
@@ -757,18 +764,18 @@ Delete a named push notification provider configuration from the Stream applicat
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `type` | `apn` \| `firebase` \| `huawei` \| `xiaomi` \| `webhook` | **yes** | Push notification provider type |
+| `type` | `apn` \| `firebase` \| `huawei` \| `xiaomi` | **yes** | Push notification provider type |
 | `name` | string | **yes** | Push provider name to delete |
 
 ### `app_check_push`
 
-Test push notification delivery and template rendering for a user or message across configured push providers.
+Test push notification delivery and template rendering for a user or message across configured push providers. Delivers real push notifications to the user's devices unless skip_devices is true.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `user_id` | string | no | User ID whose devices to test push delivery against |
 | `message_id` | string | no | Message ID to render and test push payload for |
-| `push_provider_type` | `apn` \| `firebase` \| `huawei` \| `xiaomi` \| `webhook` | no | Push notification provider type |
+| `push_provider_type` | `apn` \| `firebase` \| `huawei` \| `xiaomi` | no | Push notification provider type |
 | `push_provider_name` | string | no | Named push provider configuration to test |
 | `skip_devices` | boolean | no | Skip device lookup and only validate template rendering |
 | `event_type` | `message.new` \| `message.updated` \| `reaction.new` | no | Event type to render push template for |
@@ -801,12 +808,12 @@ Register an external cloud storage bucket (AWS S3, Google Cloud Storage, or Azur
 | `bucket` | string | **yes** | Bucket or container name on the storage provider |
 | `path` | string | no | Key prefix path inside the bucket for stored files |
 | `gcs_credentials` | string | no | Google Cloud Storage service account JSON credentials string |
-| `aws_s3` | object | no | Amazon S3 region and authentication configuration |
+| `aws_s3` | object | no | Amazon S3 region and optional credentials (omit s3_api_key and s3_secret to use IAM role authentication) |
 | `azure_blob` | object | no | Azure Blob Storage account credentials |
 
-### `app_update_external_storage` — idempotent
+### `app_update_external_storage` — **destructive**, idempotent
 
-Update an existing external cloud storage configuration (AWS S3, GCS, or Azure Blob) by name.
+Replace an existing external cloud storage configuration (AWS S3, GCS, or Azure Blob) by name.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -815,7 +822,7 @@ Update an existing external cloud storage configuration (AWS S3, GCS, or Azure B
 | `bucket` | string | **yes** | Bucket or container name on the storage provider |
 | `path` | string | no | Key prefix path inside the bucket for stored files |
 | `gcs_credentials` | string | no | Google Cloud Storage service account JSON credentials string |
-| `aws_s3` | object | no | Amazon S3 region and authentication configuration |
+| `aws_s3` | object | no | Amazon S3 region and optional credentials (omit s3_api_key and s3_secret to use IAM role authentication) |
 | `azure_blob` | object | no | Azure Blob Storage account credentials |
 
 ### `app_delete_external_storage` — **destructive**, idempotent

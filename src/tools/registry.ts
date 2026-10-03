@@ -45,5 +45,5 @@ export const ALL_TOOLS: readonly AnyToolDef[] = [
 ];
 
 export function getTool(name: string): AnyToolDef | undefined {
-  return ALL_TOOLS.find((tool) => tool.name === name || (tool.aliases ?? []).includes(name));
+  return ALL_TOOLS.find((tool) => tool.name === name);
 }

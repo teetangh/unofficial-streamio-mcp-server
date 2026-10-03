@@ -81,10 +81,10 @@ const updateCommand = defineTool({
   title: "Update slash command",
   toolset: "chat-admin",
   description:
-    "Update an existing custom slash command's description, argument usage hint, or command set.",
+    "Replace an existing custom slash command's configuration (full update: omitting args or set resets them to empty strings).",
   annotations: {
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
     idempotentHint: true,
     openWorldHint: true,
   },
@@ -127,7 +127,8 @@ const getPushTemplates = defineTool({
   name: "chat_get_push_templates",
   title: "Get push notification templates",
   toolset: "chat-admin",
-  description: "Retrieve push notification payload templates configured for a push provider type.",
+  description:
+    "Retrieve push notification payload templates configured for a push provider type. Requires Push v3 configured on the application.",
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -153,7 +154,7 @@ const upsertPushTemplate = defineTool({
   title: "Create or update push template",
   toolset: "chat-admin",
   description:
-    "Create or update a push notification payload template for a specific event and push provider.",
+    "Create or update a push notification payload template for a specific event and push provider. Requires Push v3 configured on the application.",
   annotations: {
     readOnlyHint: false,
     destructiveHint: false,

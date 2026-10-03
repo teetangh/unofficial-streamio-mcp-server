@@ -238,6 +238,178 @@ suite("live: moderation, users and app", () => {
     expect(result.user.id).toBe(offender);
   });
 
+  it(
+    "manages user devices, user groups and batch user deactivation",
+    { timeout: 60_000 },
+    async () => {
+      const devices = await harness.call("users_list_devices", { user_id: moderator });
+      expect(Array.isArray(devices.devices)).toBe(true);
+
+      const tokenId = fixtureId("devtok");
+      const createDev = await harness.callEither("users_create_device", {
+        id: tokenId,
+        push_provider: "firebase",
+        user_id: moderator,
+      });
+      expect(createDev.text).not.toMatch(SCHEMA_ERROR);
+      if (createDev.ok) {
+        harness.onCleanup(async () => {
+          await harness.callEither("users_delete_device", { id: tokenId, user_id: moderator });
+        });
+      }
+
+      const deleteDev = await harness.callEither("users_delete_device", {
+        id: tokenId,
+        user_id: moderator,
+      });
+      expect(deleteDev.text).not.toMatch(SCHEMA_ERROR);
+
+      const groupName = fixtureId("ugroup");
+      const createdGroup = await harness.call("users_create_group", {
+        name: groupName,
+        description: "MCP test group",
+        member_ids: [moderator],
+      });
+      const groupId: string = createdGroup.user_group.id;
+      harness.onCleanup(async () => {
+        await harness.callEither("users_delete_group", { id: groupId });
+      });
+
+      const gotGroup = await harness.call("users_get_group", { id: groupId });
+      expect(gotGroup.user_group.id).toBe(groupId);
+
+      const listedGroups = await harness.call("users_list_groups", { limit: 25 });
+      expect(Array.isArray(listedGroups.user_groups)).toBe(true);
+
+      const updatedGroup = await harness.call("users_update_group", {
+        id: groupId,
+        name: `${groupName}-updated`,
+        description: "Updated MCP test group",
+      });
+      expect(updatedGroup.user_group.name).toBe(`${groupName}-updated`);
+
+      await harness.call("users_add_group_members", {
+        id: groupId,
+        member_ids: [offender],
+      });
+
+      await harness.call("users_remove_group_members", {
+        id: groupId,
+        member_ids: [offender],
+      });
+
+      await harness.call("users_delete_group", { id: groupId });
+
+      const batchUser = fixtureId("batchu");
+      await harness.call("chat_upsert_users", { users: [{ id: batchUser, name: "Batch User" }] });
+      harness.trackUsers(batchUser);
+
+      const deactTask = await harness.call("users_deactivate_batch", {
+        user_ids: [batchUser],
+      });
+      expect(deactTask.task_id).toBeDefined();
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        const task = await harness.call("app_get_task", { task_id: deactTask.task_id });
+        if (task.status !== "pending" && task.status !== "running") break;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+
+      const reactTask = await harness.call("users_reactivate_batch", {
+        user_ids: [batchUser],
+      });
+      expect(reactTask.task_id).toBeDefined();
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        const task = await harness.call("app_get_task", { task_id: reactTask.task_id });
+        if (task.status !== "pending" && task.status !== "running") break;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
+  );
+
+  it(
+    "manages moderation configs, rules, review queue items and appeals",
+    { timeout: 60_000 },
+    async () => {
+      const configKey = `mcptest:${fixtureId("cfg")}`;
+      const upsertedCfg = await harness.call("moderation_upsert_config", {
+        key: configKey,
+        async: true,
+        block_list_config: {
+          enabled: true,
+          rules: [{ name: "profanity_en_2020_v1", action: "flag" }],
+        },
+        automod_platform_circumvention_config: {
+          enabled: true,
+        },
+      });
+      harness.onCleanup(async () => {
+        await harness.callEither("moderation_delete_config", { key: configKey });
+      });
+      expect(upsertedCfg.config.key).toBe(configKey);
+
+      const gotCfg = await harness.call("moderation_get_config", { key: configKey });
+      expect(gotCfg.config.key).toBe(configKey);
+
+      const queriedCfgs = await harness.call("moderation_query_configs", {
+        filter: { key: configKey },
+      });
+      expect(queriedCfgs.configs.some((c: any) => c.key === configKey)).toBe(true);
+
+      await harness.call("moderation_delete_config", { key: configKey });
+
+      const ruleName = fixtureId("modrule");
+      const upsertedRule = await harness.call("moderation_upsert_rule", {
+        name: ruleName,
+        rule_type: "user",
+        description: "MCP test rule",
+        enabled: false,
+        conditions: [
+          {
+            type: "content_count",
+            content_count_rule_params: { threshold: 5, time_window: "1h" },
+          },
+        ],
+        action: { type: "flag_user" },
+        cooldown_period: "24h",
+      });
+      const ruleId: string = upsertedRule.rule.id;
+      harness.onCleanup(async () => {
+        await harness.callEither("moderation_delete_rule", { id: ruleId });
+      });
+
+      const gotRule = await harness.call("moderation_get_rule", { id: ruleId });
+      expect(gotRule.rule.id).toBe(ruleId);
+
+      const queriedRules = await harness.call("moderation_query_rules", { limit: 10 });
+      expect(Array.isArray(queriedRules.rules)).toBe(true);
+
+      await harness.call("moderation_delete_rule", { id: ruleId });
+
+      const queue = await harness.call("moderation_query_review_queue", { limit: 5 });
+      const rqId = queue.items?.[0]?.id ?? "00000000-0000-0000-0000-000000000000";
+      const rqItem = await harness.callEither("moderation_get_review_queue_item", { id: rqId });
+      expect(rqItem.text).not.toMatch(SCHEMA_ERROR);
+
+      const appeals = await harness.call("moderation_query_appeals", { limit: 5 });
+      expect(Array.isArray(appeals.items)).toBe(true);
+
+      const appealRes = await harness.callEither("moderation_appeal", {
+        entity_id: messageId,
+        entity_type: "stream:chat:v1:message",
+        user_id: offender,
+        appeal_reason: "false positive in live test",
+      });
+      expect(appealRes.text).not.toMatch(SCHEMA_ERROR);
+
+      const getAppealRes = await harness.callEither("moderation_get_appeal", {
+        id: "00000000-0000-0000-0000-000000000000",
+      });
+      expect(getAppealRes.text).not.toMatch(SCHEMA_ERROR);
+    }
+  );
+
   it("deletes the flagged message", async () => {
     const result = await harness.call("chat_delete_message", { message_id: messageId, hard: true });
     expect(result.message.id).toBe(messageId);

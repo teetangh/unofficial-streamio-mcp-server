@@ -54,8 +54,7 @@ defineTool({
 - converts thrown errors into `isError` tool results via `formatErrorMessage`,
 - applies response compaction unless `verbose` or `compact: false`,
 - skips tools outside `STREAM_MCP_TOOLSETS`, or non-read-only tools under `STREAM_MCP_READ_ONLY`,
-- supports on-demand toolset activation via `stream_list_toolsets` / `stream_enable_toolset` when `STREAM_MCP_DYNAMIC_TOOLSETS=true`,
-- registers deprecated aliases with a deprecation notice prepended to the result.
+- supports on-demand toolset activation via `stream_list_toolsets` / `stream_enable_toolset` when `STREAM_MCP_DYNAMIC_TOOLSETS=true`.
 
 The payoff is that a tool module contains only its schema and the request it builds — which is exactly what the tests assert.
 

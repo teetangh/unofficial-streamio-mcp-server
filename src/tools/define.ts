@@ -64,12 +64,6 @@ export interface ToolDef<S extends z.ZodRawShape = z.ZodRawShape, R = unknown> {
    * stats are derived from call activity.
    */
   notFoundHint?: string;
-  /**
-   * Deprecated names kept working for one more minor release. The removal
-   * version is stated in the notice `registerTool` prepends — move both
-   * together, and only in the release that actually removes them.
-   */
-  aliases?: string[];
 }
 
 /**
@@ -121,7 +115,7 @@ function isRegistrable(def: AnyToolDef, enabled: ReadonlySet<Toolset>): boolean 
 }
 
 /**
- * Registers one definition (plus any deprecated aliases) on an MCP server.
+ * Registers one definition on an MCP server.
  * All cross-cutting behaviour — client lookup, error mapping, compaction —
  * lives here so tool modules stay declarative.
  */
@@ -129,85 +123,57 @@ export function registerTool<S extends z.ZodRawShape, R>(
   server: McpServer,
   def: ToolDef<S, R>,
   enabled: ReadonlySet<Toolset>
-): RegisteredTool[] {
-  if (!isRegistrable(def, enabled)) return [];
+): RegisteredTool | undefined {
+  if (!isRegistrable(def, enabled)) return undefined;
 
   const inputSchema = {
     ...def.inputSchema,
     [VERBOSE_KEY]: verboseSchema,
   } as S & { verbose: typeof verboseSchema };
 
-  const makeHandler =
-    (deprecatedAs?: string) =>
-    async (args: ToolArgs<S>): Promise<CallToolResult> => {
-      try {
-        const { verbose = false } = args;
-        const client = getClient();
-        const raw = await def.handler(args, client);
-        const payload = applyCompaction(def, raw, verbose, args);
-        const result = toolResult(payload);
-        if (deprecatedAs) {
-          result.content.unshift({
-            type: "text",
-            text: `Note: "${deprecatedAs}" is deprecated and will be removed in 0.5.0. Use "${def.name}".`,
-          });
-        }
-        return result;
-      } catch (error) {
-        return toolError(error, def.notFoundHint);
-      }
-    };
+  const handler = async (args: ToolArgs<S>): Promise<CallToolResult> => {
+    try {
+      const { verbose = false } = args;
+      const client = getClient();
+      const raw = await def.handler(args, client);
+      const payload = applyCompaction(def, raw, verbose, args);
+      return toolResult(payload);
+    } catch (error) {
+      return toolError(error, def.notFoundHint);
+    }
+  };
 
   // The SDK types the callback against the concrete shape it infers from
   // `inputSchema`; ToolDef is generic over that shape, so the two cannot be
   // related without re-deriving the SDK's inference. Runtime behaviour is
   // covered by the round-trip tests in __tests__/server.test.ts.
-  const handles: RegisteredTool[] = [
-    server.registerTool(
-      def.name,
-      {
-        title: def.title,
-        description: def.description,
-        inputSchema,
-        annotations: { title: def.title, ...def.annotations },
-      },
-      makeHandler() as never
-    ),
-  ];
-
-  for (const alias of def.aliases ?? []) {
-    handles.push(
-      server.registerTool(
-        alias,
-        {
-          title: `${def.title} (deprecated)`,
-          description: `Deprecated alias for "${def.name}". ${def.description}`,
-          inputSchema,
-          annotations: { title: def.title, ...def.annotations },
-        },
-        makeHandler(alias) as never
-      )
-    );
-  }
-
-  return handles;
+  return server.registerTool(
+    def.name,
+    {
+      title: def.title,
+      description: def.description,
+      inputSchema,
+      annotations: { title: def.title, ...def.annotations },
+    },
+    handler as never
+  );
 }
 
 export function registerTools(server: McpServer, defs: readonly AnyToolDef[]): number {
   const enabled = getEnabledToolsets();
   const dynamic = isDynamicToolsets();
-  const byToolset = new Map<Toolset, { name: string; handles: RegisteredTool[] }[]>();
+  const byToolset = new Map<Toolset, { name: string; handle: RegisteredTool }[]>();
   let count = 0;
 
   for (const def of defs) {
-    const handles = registerTool(server, def, enabled);
-    if (handles.length > 0) {
+    const handle = registerTool(server, def, enabled);
+    if (handle) {
       count += 1;
       if (dynamic) {
-        for (const handle of handles) handle.disable();
+        handle.disable();
       }
       const list = byToolset.get(def.toolset) ?? [];
-      list.push({ name: def.name, handles });
+      list.push({ name: def.name, handle });
       byToolset.set(def.toolset, list);
     }
   }
@@ -232,7 +198,7 @@ export function registerTools(server: McpServer, defs: readonly AnyToolDef[]): n
         const toolsets = [...byToolset.entries()].map(([toolset, entries]) => ({
           toolset,
           tool_count: entries.length,
-          enabled: entries.every((entry) => entry.handles.every((h) => h.enabled)),
+          enabled: entries.every((entry) => entry.handle.enabled),
           tools: entries.map((entry) => entry.name),
         }));
         return toolResult({ toolsets });
@@ -269,7 +235,7 @@ export function registerTools(server: McpServer, defs: readonly AnyToolDef[]): n
             continue;
           }
           for (const entry of entries) {
-            for (const handle of entry.handles) handle.enable();
+            entry.handle.enable();
             enabledTools.push(entry.name);
           }
         }

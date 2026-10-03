@@ -3,6 +3,9 @@ import { fixtureId, hasCredentials, LiveHarness } from "./harness.js";
 
 const suite = hasCredentials ? describe : describe.skip;
 
+const SCHEMA_ERROR =
+  /404 |Invalid input|is a required field|unknown field|cannot be blank|must be provided/i;
+
 suite("live: chat", () => {
   const harness = new LiveHarness();
   const alice = fixtureId("alice");
@@ -373,6 +376,154 @@ suite("live: chat", () => {
 
     const restored = await harness.call("users_restore", { user_ids: [doomed] });
     expect(restored.duration).toBeDefined();
+  });
+
+  it("manages polls, options and votes", { timeout: 30_000 }, async () => {
+    const created = await harness.call("chat_create_poll", {
+      name: "Live test poll?",
+      user_id: alice,
+      options: [{ text: "Yes" }, { text: "No" }],
+    });
+    const pollId: string = created.poll.id;
+    harness.onCleanup(async () => {
+      await harness.callEither("chat_delete_poll", { poll_id: pollId, user_id: alice });
+    });
+
+    const got = await harness.call("chat_get_poll", { poll_id: pollId, user_id: alice });
+    expect(got.poll.id).toBe(pollId);
+
+    const queried = await harness.call("chat_query_polls", {
+      user_id: alice,
+      filter: { id: pollId },
+    });
+    expect(queried.polls.some((p: any) => p.id === pollId)).toBe(true);
+
+    const optCreated = await harness.call("chat_create_poll_option", {
+      poll_id: pollId,
+      text: "Maybe",
+      user_id: alice,
+    });
+    const optionId: string = optCreated.poll_option.id;
+
+    // Attach the poll to a message so a vote can be cast and removed.
+    const pollMsg = await harness.call("chat_send_message", {
+      ...channel,
+      text: "Vote on this poll",
+      user_id: alice,
+    });
+    await harness.call("chat_update_message_partial", {
+      message_id: pollMsg.message.id,
+      user_id: alice,
+      set: { poll_id: pollId },
+    });
+
+    const voted = await harness.callEither("chat_cast_poll_vote", {
+      message_id: pollMsg.message.id,
+      poll_id: pollId,
+      user_id: bob,
+      option_id: optionId,
+    });
+    expect(voted.text).not.toMatch(SCHEMA_ERROR);
+
+    const votes = await harness.call("chat_query_poll_votes", {
+      poll_id: pollId,
+      user_id: alice,
+    });
+    expect(Array.isArray(votes.votes)).toBe(true);
+
+    const voteId = votes.votes?.[0]?.id ?? "no-such-vote";
+    const voteDeleted = await harness.callEither("chat_delete_poll_vote", {
+      message_id: pollMsg.message.id,
+      poll_id: pollId,
+      vote_id: voteId,
+      user_id: bob,
+    });
+    expect(voteDeleted.text).not.toMatch(SCHEMA_ERROR);
+
+    await harness.call("chat_delete_poll_option", {
+      poll_id: pollId,
+      option_id: optionId,
+      user_id: alice,
+    });
+
+    const updated = await harness.call("chat_update_poll_partial", {
+      poll_id: pollId,
+      user_id: alice,
+      set: { is_closed: true },
+    });
+    expect(updated.poll.is_closed).toBe(true);
+
+    await harness.call("chat_delete_poll", { poll_id: pollId, user_id: alice });
+  });
+
+  it("reaches the message reminder endpoints", async () => {
+    const createRes = await harness.callEither("chat_create_reminder", {
+      message_id: messageId,
+      user_id: alice,
+      remind_at: "2030-01-01T00:00:00Z",
+    });
+    expect(createRes.text).not.toMatch(SCHEMA_ERROR);
+
+    const updateRes = await harness.callEither("chat_update_reminder", {
+      message_id: messageId,
+      user_id: alice,
+      remind_at: "2030-01-02T00:00:00Z",
+    });
+    expect(updateRes.text).not.toMatch(SCHEMA_ERROR);
+
+    const queryRes = await harness.callEither("chat_query_reminders", {
+      user_id: alice,
+    });
+    expect(queryRes.text).not.toMatch(SCHEMA_ERROR);
+
+    const deleteRes = await harness.callEither("chat_delete_reminder", {
+      message_id: messageId,
+      user_id: alice,
+    });
+    expect(deleteRes.text).not.toMatch(SCHEMA_ERROR);
+  });
+
+  it("queries and reaches draft endpoints", async () => {
+    const drafts = await harness.call("chat_query_drafts", { user_id: alice });
+    expect(Array.isArray(drafts.drafts)).toBe(true);
+
+    const getErr = await harness.callExpectingError("chat_get_draft", {
+      ...channel,
+      user_id: alice,
+    });
+    expect(getErr).toMatch(/not found/i);
+
+    const delErr = await harness.callExpectingError("chat_delete_draft", {
+      ...channel,
+      user_id: alice,
+    });
+    expect(delErr).toMatch(/not found/i);
+  });
+
+  it("fetches batch unread counts and reaches message history", async () => {
+    const unread = await harness.call("chat_unread_counts_batch", {
+      user_ids: [alice, bob],
+    });
+    expect(unread.counts_by_user).toBeDefined();
+
+    const history = await harness.callEither("chat_query_message_history", {
+      filter: { message_id: messageId },
+    });
+    expect(history.text).not.toMatch(SCHEMA_ERROR);
+  });
+
+  it("deletes channels in batch", async () => {
+    const batchCh = fixtureId("batchdel");
+    await harness.call("chat_create_channel", {
+      type: "messaging",
+      id: batchCh,
+      created_by_id: alice,
+    });
+    const res = await harness.call("chat_delete_channels_batch", {
+      cids: [`messaging:${batchCh}`],
+      hard_delete: true,
+    });
+    expect(res.task_id).toBeDefined();
   });
 
   it("truncates the channel", async () => {
