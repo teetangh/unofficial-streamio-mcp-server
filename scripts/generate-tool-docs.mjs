@@ -130,12 +130,6 @@ function render(page) {
     for (const tool of tools) {
       lines.push(`### \`${tool.name}\`${badge(tool)}`, "");
       lines.push(tool.description, "");
-      if (tool.aliases?.length) {
-        lines.push(
-          `Deprecated aliases: ${tool.aliases.map((alias) => `\`${alias}\``).join(", ")}`,
-          ""
-        );
-      }
       lines.push("| Parameter | Type | Required | Description |", "| --- | --- | --- | --- |");
       lines.push(...rows(tool));
       lines.push("");

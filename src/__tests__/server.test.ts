@@ -9,6 +9,7 @@ const ENV_KEYS = [
   "STREAM_API_SECRET",
   "STREAM_MCP_TOOLSETS",
   "STREAM_MCP_READ_ONLY",
+  "STREAM_MCP_DYNAMIC_TOOLSETS",
 ] as const;
 
 let saved: Record<string, string | undefined>;
@@ -27,6 +28,7 @@ beforeEach(() => {
   process.env.STREAM_API_SECRET = "test-secret";
   delete process.env.STREAM_MCP_TOOLSETS;
   delete process.env.STREAM_MCP_READ_ONLY;
+  delete process.env.STREAM_MCP_DYNAMIC_TOOLSETS;
 });
 
 afterEach(() => {
@@ -37,13 +39,12 @@ afterEach(() => {
 });
 
 describe("MCP server", () => {
-  it("lists every tool plus its aliases", async () => {
+  it("lists every registered tool", async () => {
     const { client, toolCount } = await connect();
     const { tools } = await client.listTools();
 
-    const aliasCount = ALL_TOOLS.reduce((sum, tool) => sum + (tool.aliases?.length ?? 0), 0);
     expect(toolCount).toBe(ALL_TOOLS.length);
-    expect(tools.length).toBe(ALL_TOOLS.length + aliasCount);
+    expect(tools.length).toBe(ALL_TOOLS.length);
     await client.close();
   });
 
@@ -183,6 +184,21 @@ describe("MCP server", () => {
       "app_update_settings",
       "app_get_rate_limits",
       "app_get_task",
+      "app_list_roles",
+      "app_create_role",
+      "app_delete_role",
+      "app_list_permissions",
+      "app_get_permission",
+      "app_list_push_providers",
+      "app_upsert_push_provider",
+      "app_delete_push_provider",
+      "app_check_push",
+      "app_verify_webhook",
+      "app_list_external_storage",
+      "app_create_external_storage",
+      "app_update_external_storage",
+      "app_delete_external_storage",
+      "app_check_external_storage",
     ];
     expect(tools.map((tool) => tool.name).sort()).toEqual([...expected].sort());
     expect(toolCount).toBe(expected.length);
@@ -216,18 +232,75 @@ describe("MCP server", () => {
     await client.close();
   });
 
-  it("warns when a deprecated alias is used", async () => {
+  it("supports on-demand toolset activation when STREAM_MCP_DYNAMIC_TOOLSETS=true", async () => {
+    process.env.STREAM_MCP_DYNAMIC_TOOLSETS = "true";
     const { client } = await connect();
 
-    const result = await client.callTool({
-      name: "auth_create_user_token",
-      arguments: { user_id: "alice" },
-    });
+    const initial = await client.listTools();
+    expect(initial.tools.map((t) => t.name).sort()).toEqual([
+      "stream_enable_toolset",
+      "stream_list_toolsets",
+    ]);
 
-    expect(result.isError).toBeFalsy();
-    const texts = (result.content as { text: string }[]).map((entry) => entry.text);
-    expect(texts[0]).toMatch(/deprecated/);
-    expect(texts[0]).toMatch(/chat_create_token/);
+    const listResult = await client.callTool({
+      name: "stream_list_toolsets",
+      arguments: {},
+    });
+    expect(listResult.isError).toBeFalsy();
+    const summary = JSON.parse((listResult.content as { text: string }[])[0].text) as {
+      toolsets: { toolset: string; enabled: boolean; tool_count: number; tools: string[] }[];
+    };
+    expect(summary.toolsets.length).toBeGreaterThan(0);
+    expect(summary.toolsets.every((entry) => entry.enabled === false)).toBe(true);
+
+    const enableResult = await client.callTool({
+      name: "stream_enable_toolset",
+      arguments: { toolsets: ["app"] },
+    });
+    expect(enableResult.isError).toBeFalsy();
+
+    const afterEnable = await client.listTools();
+    expect(afterEnable.tools.some((t) => t.name === "app_get_settings")).toBe(true);
+    expect(afterEnable.tools.some((t) => t.name === "chat_send_message")).toBe(false);
+    await client.close();
+  });
+
+  it("exposes MCP resources, resource templates, and operational prompts", async () => {
+    const { client } = await connect();
+
+    const { resources } = await client.listResources();
+    expect(resources.map((r) => r.uri)).toEqual(
+      expect.arrayContaining([
+        "stream://app/settings",
+        "stream://app/rate-limits",
+        "stream://chat/channel-types",
+        "stream://video/call-types",
+        "stream://moderation/blocklists",
+      ])
+    );
+
+    const { resourceTemplates } = await client.listResourceTemplates();
+    expect(resourceTemplates.map((t) => t.uriTemplate)).toEqual(
+      expect.arrayContaining([
+        "stream://chat/channel-types/{name}",
+        "stream://video/call-types/{name}",
+      ])
+    );
+
+    const { prompts } = await client.listPrompts();
+    expect(prompts.map((p) => p.name).sort()).toEqual([
+      "call-quality-debug",
+      "channel-incident-debug",
+      "moderation-triage",
+      "rate-limit-diagnosis",
+    ]);
+
+    const prompt = await client.getPrompt({
+      name: "channel-incident-debug",
+      arguments: { channel_type: "messaging", channel_id: "general" },
+    });
+    expect(prompt.messages).toHaveLength(1);
+    expect(JSON.stringify(prompt.messages[0].content)).toMatch(/messaging:general/);
     await client.close();
   });
 });

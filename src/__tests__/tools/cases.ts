@@ -1080,16 +1080,634 @@ export const appCases: ToolCase[] = [
   { tool: "app_get_task", args: { task_id: "t1" }, path: "getTask", payload: { id: "t1" } },
 ];
 
+export const deviceAndGroupCases: ToolCase[] = [
+  {
+    tool: "users_list_devices",
+    args: { user_id: "alice" },
+    path: "listDevices",
+    payload: { user_id: "alice" },
+  },
+  {
+    tool: "users_create_device",
+    args: {
+      id: "tok1",
+      push_provider: "firebase",
+      user_id: "alice",
+      push_provider_name: "fcm",
+    },
+    path: "createDevice",
+    payload: {
+      id: "tok1",
+      push_provider: "firebase",
+      user_id: "alice",
+      push_provider_name: "fcm",
+    },
+  },
+  {
+    tool: "users_delete_device",
+    args: { id: "tok1", user_id: "alice" },
+    path: "deleteDevice",
+    payload: { id: "tok1", user_id: "alice" },
+  },
+  {
+    tool: "users_list_groups",
+    args: { team_id: "t1" },
+    path: "listUserGroups",
+    payload: { limit: 25, team_id: "t1" },
+  },
+  {
+    tool: "users_get_group",
+    args: { id: "g1" },
+    path: "getUserGroup",
+    payload: { id: "g1" },
+  },
+  {
+    tool: "users_create_group",
+    args: { name: "VIPs", member_ids: ["alice"] },
+    path: "createUserGroup",
+    payload: { name: "VIPs", member_ids: ["alice"] },
+  },
+  {
+    tool: "users_update_group",
+    args: { id: "g1", name: "Admins" },
+    path: "updateUserGroup",
+    payload: { id: "g1", name: "Admins" },
+  },
+  {
+    tool: "users_delete_group",
+    args: { id: "g1" },
+    path: "deleteUserGroup",
+    payload: { id: "g1" },
+  },
+  {
+    tool: "users_add_group_members",
+    args: { id: "g1", member_ids: ["bob"], as_admin: true },
+    path: "addUserGroupMembers",
+    payload: { id: "g1", member_ids: ["bob"], as_admin: true },
+  },
+  {
+    tool: "users_remove_group_members",
+    args: { id: "g1", member_ids: ["bob"] },
+    path: "removeUserGroupMembers",
+    payload: { id: "g1", member_ids: ["bob"] },
+  },
+  {
+    tool: "users_deactivate_batch",
+    args: { user_ids: ["alice", "bob"], mark_messages_deleted: true },
+    path: "deactivateUsers",
+    payload: { user_ids: ["alice", "bob"], mark_messages_deleted: true },
+  },
+  {
+    tool: "users_reactivate_batch",
+    args: { user_ids: ["alice", "bob"], restore_messages: true },
+    path: "reactivateUsers",
+    payload: { user_ids: ["alice", "bob"], restore_messages: true },
+  },
+];
+
+export const pollCases: ToolCase[] = [
+  {
+    tool: "chat_create_poll",
+    args: { name: "Lunch?", user_id: "alice", options: [{ text: "Tacos" }] },
+    path: "createPoll",
+    payload: { name: "Lunch?", user_id: "alice", options: [{ text: "Tacos" }] },
+  },
+  {
+    tool: "chat_get_poll",
+    args: { poll_id: "p1" },
+    path: "getPoll",
+    payload: { poll_id: "p1" },
+  },
+  {
+    tool: "chat_update_poll_partial",
+    args: { poll_id: "p1", user_id: "alice", set: { is_closed: true } },
+    path: "updatePollPartial",
+    payload: { poll_id: "p1", user_id: "alice", set: { is_closed: true } },
+  },
+  {
+    tool: "chat_delete_poll",
+    args: { poll_id: "p1", user_id: "alice" },
+    path: "deletePoll",
+    payload: { poll_id: "p1", user_id: "alice" },
+  },
+  {
+    tool: "chat_query_polls",
+    args: { user_id: "alice", filter: { is_closed: false } },
+    path: "queryPolls",
+    payload: { filter: { is_closed: false }, limit: 25, user_id: "alice" },
+  },
+  {
+    tool: "chat_create_poll_option",
+    args: { poll_id: "p1", text: "Sushi", user_id: "alice" },
+    path: "createPollOption",
+    payload: { poll_id: "p1", text: "Sushi", user_id: "alice" },
+  },
+  {
+    tool: "chat_delete_poll_option",
+    args: { poll_id: "p1", option_id: "opt1", user_id: "alice" },
+    path: "deletePollOption",
+    payload: { poll_id: "p1", option_id: "opt1", user_id: "alice" },
+  },
+  {
+    tool: "chat_cast_poll_vote",
+    args: { message_id: "m1", poll_id: "p1", user_id: "alice", option_id: "opt1" },
+    path: "chat.castPollVote",
+    payload: { message_id: "m1", poll_id: "p1", user_id: "alice", vote: { option_id: "opt1" } },
+  },
+  {
+    tool: "chat_delete_poll_vote",
+    args: { message_id: "m1", poll_id: "p1", vote_id: "v1", user_id: "alice" },
+    path: "chat.deletePollVote",
+    payload: { message_id: "m1", poll_id: "p1", vote_id: "v1", user_id: "alice" },
+  },
+  {
+    tool: "chat_query_poll_votes",
+    args: { poll_id: "p1", user_id: "alice" },
+    path: "queryPollVotes",
+    payload: { poll_id: "p1", limit: 25, user_id: "alice" },
+  },
+  {
+    tool: "chat_create_reminder",
+    args: { message_id: "m1", user_id: "alice", remind_at: "2026-09-01T15:00:00Z" },
+    path: "chat.createReminder",
+    payload: {
+      message_id: "m1",
+      user_id: "alice",
+      remind_at: new Date("2026-09-01T15:00:00Z"),
+    },
+  },
+  {
+    tool: "chat_update_reminder",
+    args: { message_id: "m1", user_id: "alice", remind_at: "2026-09-02T15:00:00Z" },
+    path: "chat.updateReminder",
+    payload: {
+      message_id: "m1",
+      user_id: "alice",
+      remind_at: new Date("2026-09-02T15:00:00Z"),
+    },
+  },
+  {
+    tool: "chat_delete_reminder",
+    args: { message_id: "m1", user_id: "alice" },
+    path: "chat.deleteReminder",
+    payload: { message_id: "m1", user_id: "alice" },
+  },
+  {
+    tool: "chat_query_reminders",
+    args: { user_id: "alice" },
+    path: "chat.queryReminders",
+    payload: { user_id: "alice", limit: 25 },
+  },
+  {
+    tool: "chat_get_draft",
+    args: { ...CHANNEL, user_id: "alice" },
+    path: "chat.getDraft",
+    payload: { type: "messaging", id: "general", user_id: "alice" },
+  },
+  {
+    tool: "chat_delete_draft",
+    args: { ...CHANNEL, user_id: "alice" },
+    path: "chat.deleteDraft",
+    payload: { type: "messaging", id: "general", user_id: "alice" },
+  },
+  {
+    tool: "chat_query_drafts",
+    args: { user_id: "alice" },
+    path: "chat.queryDrafts",
+    payload: { user_id: "alice", limit: 25 },
+  },
+];
+
+export const commandAndBatchCases: ToolCase[] = [
+  { tool: "chat_list_commands", args: {}, path: "chat.listCommands", payload: undefined },
+  {
+    tool: "chat_get_command",
+    args: { name: "giphy" },
+    path: "chat.getCommand",
+    payload: { name: "giphy" },
+  },
+  {
+    tool: "chat_create_command",
+    args: { name: "ticket", description: "Create a ticket", args: "[title]" },
+    path: "chat.createCommand",
+    payload: { name: "ticket", description: "Create a ticket", args: "[title]" },
+  },
+  {
+    tool: "chat_update_command",
+    args: { name: "ticket", description: "Updated ticket command" },
+    path: "chat.updateCommand",
+    payload: { name: "ticket", description: "Updated ticket command" },
+  },
+  {
+    tool: "chat_delete_command",
+    args: { name: "ticket" },
+    path: "chat.deleteCommand",
+    payload: { name: "ticket" },
+  },
+  {
+    tool: "chat_get_push_templates",
+    args: { push_provider_type: "firebase" },
+    path: "getPushTemplates",
+    payload: { push_provider_type: "firebase" },
+  },
+  {
+    tool: "chat_upsert_push_template",
+    args: {
+      push_provider_type: "firebase",
+      event_type: "message.new",
+      template: "{{ message.text }}",
+    },
+    path: "upsertPushTemplate",
+    payload: {
+      push_provider_type: "firebase",
+      event_type: "message.new",
+      template: "{{ message.text }}",
+    },
+  },
+  {
+    tool: "chat_delete_channels_batch",
+    args: { cids: ["messaging:general"], hard_delete: true },
+    path: "chat.deleteChannels",
+    payload: { cids: ["messaging:general"], hard_delete: true },
+  },
+  {
+    tool: "chat_unread_counts_batch",
+    args: { user_ids: ["alice", "bob"] },
+    path: "chat.unreadCountsBatch",
+    payload: { user_ids: ["alice", "bob"] },
+  },
+  {
+    tool: "chat_query_message_history",
+    args: { filter: { message_id: "m1" } },
+    path: "chat.queryMessageHistory",
+    payload: { filter: { message_id: "m1" }, limit: 25 },
+  },
+];
+
+export const moderationPolicyCases: ToolCase[] = [
+  {
+    tool: "moderation_query_configs",
+    args: {},
+    path: "moderation.queryModerationConfigs",
+    payload: { limit: 25 },
+  },
+  {
+    tool: "moderation_get_config",
+    args: { key: "default" },
+    path: "moderation.getConfig",
+    payload: { key: "default" },
+  },
+  {
+    tool: "moderation_upsert_config",
+    args: {
+      key: "default",
+      async: true,
+      velocity_filter_config: {
+        enabled: true,
+        rules: [{ action: "flag", fast_spam_threshold: 5, fast_spam_ttl: 60 }],
+      },
+    },
+    path: "moderation.upsertConfig",
+    payload: {
+      key: "default",
+      async: true,
+      velocity_filter_config: {
+        enabled: true,
+        rules: [{ action: "flag", fast_spam_threshold: 5, fast_spam_ttl: 60 }],
+      },
+    },
+  },
+  {
+    tool: "moderation_delete_config",
+    args: { key: "default" },
+    path: "moderation.deleteConfig",
+    payload: { key: "default" },
+  },
+  {
+    tool: "moderation_query_rules",
+    args: {},
+    path: "moderation.queryModerationRules",
+    payload: { limit: 25 },
+  },
+  {
+    tool: "moderation_get_rule",
+    args: { id: "r1" },
+    path: "moderation.getModerationRule",
+    payload: { id: "r1" },
+  },
+  {
+    tool: "moderation_upsert_rule",
+    args: {
+      name: "spam-rule",
+      rule_type: "user",
+      enabled: true,
+      conditions: [
+        { type: "user_created_within", user_created_within_params: { max_age: "24h" } },
+        { type: "user_role", user_role_params: { role: "user", operator: "eq" } },
+      ],
+    },
+    path: "moderation.upsertModerationRule",
+    payload: {
+      name: "spam-rule",
+      rule_type: "user",
+      enabled: true,
+      conditions: [
+        { type: "user_created_within", user_created_within_params: { max_age: "24h" } },
+        { type: "user_role", user_role_params: { role: "user", operator: "eq" } },
+      ],
+    },
+  },
+  {
+    tool: "moderation_delete_rule",
+    args: { id: "r1" },
+    path: "moderation.deleteModerationRule",
+    payload: { id: "r1" },
+  },
+  {
+    tool: "moderation_get_review_queue_item",
+    args: { id: "rq1" },
+    path: "moderation.getReviewQueueItem",
+    payload: { id: "rq1" },
+  },
+  {
+    tool: "moderation_appeal",
+    args: {
+      entity_id: "m1",
+      entity_type: "stream:chat:v1:message",
+      user_id: "alice",
+      appeal_reason: "false positive",
+    },
+    path: "moderation.appeal",
+    payload: {
+      entity_id: "m1",
+      entity_type: "stream:chat:v1:message",
+      user_id: "alice",
+      appeal_reason: "false positive",
+    },
+  },
+  {
+    tool: "moderation_get_appeal",
+    args: { id: "ap1" },
+    path: "moderation.getAppeal",
+    payload: { id: "ap1" },
+  },
+  {
+    tool: "moderation_query_appeals",
+    args: {},
+    path: "moderation.queryAppeals",
+    payload: { limit: 25 },
+  },
+];
+
+export const videoAnalyticsCases: ToolCase[] = [
+  {
+    tool: "video_get_active_calls_status",
+    args: {},
+    path: "video.getActiveCallsStatus",
+    payload: undefined,
+  },
+  {
+    tool: "video_query_aggregate_call_stats",
+    args: { from: "2026-08-01", to: "2026-08-07" },
+    path: "video.queryAggregateCallStats",
+    payload: {
+      from: "2026-08-01",
+      to: "2026-08-07",
+      report_types: [
+        "call_quality",
+        "user_feedback",
+        "sdk_usage",
+        "network_metrics",
+        "call_duration",
+        "call_participant_count",
+        "calls_per_day",
+      ],
+    },
+  },
+  {
+    tool: "video_query_call_session_stats",
+    args: {},
+    path: "video.queryCallSessionStats",
+    payload: { limit: 25 },
+  },
+  {
+    tool: "video_query_call_participant_stats",
+    args: { ...CALL, session: "s1" },
+    path: "video.queryCallSessionParticipantStats",
+    payload: { call_type: "default", call_id: "standup", session: "s1", limit: 25 },
+  },
+  {
+    tool: "video_get_participant_stats_timeline",
+    args: { ...CALL, session: "s1", user: "alice", user_session: "us1" },
+    path: "video.getCallSessionParticipantStatsTimeline",
+    payload: {
+      call_type: "default",
+      call_id: "standup",
+      session: "s1",
+      user: "alice",
+      user_session: "us1",
+    },
+  },
+  {
+    tool: "video_query_user_feedback",
+    args: { full: true },
+    path: "video.queryUserFeedback",
+    payload: { limit: 25, full: true },
+  },
+  {
+    tool: "video_start_frame_recording",
+    args: { ...CALL, recording_external_storage: "s3-frames" },
+    path: "call.startFrameRecording",
+    payload: { recording_external_storage: "s3-frames" },
+  },
+  {
+    tool: "video_stop_frame_recording",
+    args: { ...CALL },
+    path: "call.stopFrameRecording",
+    payload: undefined,
+  },
+  {
+    tool: "video_send_closed_caption",
+    args: { ...CALL, text: "Hello", speaker_id: "alice", user_id: "alice" },
+    path: "call.sendClosedCaption",
+    payload: { text: "Hello", speaker_id: "alice", user_id: "alice" },
+  },
+  {
+    tool: "video_list_sip_trunks",
+    args: {},
+    path: "video.listSIPTrunks",
+    payload: undefined,
+  },
+  {
+    tool: "video_create_sip_trunk",
+    args: { name: "main-trunk", numbers: ["+15551234567"] },
+    path: "video.createSIPTrunk",
+    payload: { name: "main-trunk", numbers: ["+15551234567"] },
+  },
+  {
+    tool: "video_update_sip_trunk",
+    args: { id: "tr1", name: "updated-trunk", numbers: ["+15551234567"] },
+    path: "video.updateSIPTrunk",
+    payload: { id: "tr1", name: "updated-trunk", numbers: ["+15551234567"] },
+  },
+  {
+    tool: "video_delete_sip_trunk",
+    args: { id: "tr1" },
+    path: "video.deleteSIPTrunk",
+    payload: { id: "tr1" },
+  },
+  {
+    tool: "video_list_sip_routing_rules",
+    args: {},
+    path: "video.listSIPInboundRoutingRule",
+    payload: undefined,
+  },
+  {
+    tool: "video_create_sip_routing_rule",
+    args: {
+      name: "inbound-rule",
+      trunk_ids: ["tr1"],
+      caller_configs: { id: "{{sip.from.user}}" },
+      direct_routing_configs: { call_type: "default", call_id: "sip-{{sip.to.user}}" },
+    },
+    path: "video.createSIPInboundRoutingRule",
+    payload: {
+      name: "inbound-rule",
+      trunk_ids: ["tr1"],
+      caller_configs: { id: "{{sip.from.user}}" },
+      direct_routing_configs: { call_type: "default", call_id: "sip-{{sip.to.user}}" },
+    },
+  },
+  {
+    tool: "video_delete_sip_routing_rule",
+    args: { id: "rr1" },
+    path: "video.deleteSIPInboundRoutingRule",
+    payload: { id: "rr1" },
+  },
+];
+
+export const platformCases: ToolCase[] = [
+  { tool: "app_list_roles", args: {}, path: "listRoles", payload: undefined },
+  {
+    tool: "app_create_role",
+    args: { name: "reviewer" },
+    path: "createRole",
+    payload: { name: "reviewer" },
+  },
+  {
+    tool: "app_delete_role",
+    args: { name: "reviewer" },
+    path: "deleteRole",
+    payload: { name: "reviewer" },
+  },
+  { tool: "app_list_permissions", args: {}, path: "listPermissions", payload: undefined },
+  {
+    tool: "app_get_permission",
+    args: { id: "create-channel" },
+    path: "getPermission",
+    payload: { id: "create-channel" },
+  },
+  { tool: "app_list_push_providers", args: {}, path: "listPushProviders", payload: undefined },
+  {
+    tool: "app_upsert_push_provider",
+    args: {
+      type: "firebase",
+      name: "fcm-main",
+      firebase_credentials: "{}",
+      disabled_at: "2026-09-01T15:00:00Z",
+    },
+    path: "upsertPushProvider",
+    payload: {
+      push_provider: {
+        type: "firebase",
+        name: "fcm-main",
+        firebase_credentials: "{}",
+        disabled_at: new Date("2026-09-01T15:00:00Z"),
+      },
+    },
+  },
+  {
+    tool: "app_delete_push_provider",
+    args: { type: "firebase", name: "fcm-main" },
+    path: "deletePushProvider",
+    payload: { type: "firebase", name: "fcm-main" },
+  },
+  {
+    tool: "app_check_push",
+    args: { user_id: "alice", skip_devices: true },
+    path: "checkPush",
+    payload: { user_id: "alice", skip_devices: true },
+  },
+  {
+    tool: "app_verify_webhook",
+    args: { raw_body: '{"type":"message.new"}', signature: "sig123" },
+    path: "verifyWebhook",
+    payload: ['{"type":"message.new"}', "sig123"],
+    overrides: { verifyWebhook: true },
+    assert: (_call, result) => {
+      if ((result as { valid: boolean }).valid !== true) {
+        throw new Error("expected valid=true");
+      }
+    },
+  },
+  {
+    tool: "app_list_external_storage",
+    args: {},
+    path: "listExternalStorage",
+    payload: undefined,
+  },
+  {
+    tool: "app_create_external_storage",
+    args: {
+      name: "archive-s3",
+      storage_type: "s3",
+      bucket: "my-bucket",
+      aws_s3: { s3_region: "us-east-1" },
+    },
+    path: "createExternalStorage",
+    payload: {
+      name: "archive-s3",
+      storage_type: "s3",
+      bucket: "my-bucket",
+      aws_s3: { s3_region: "us-east-1" },
+    },
+  },
+  {
+    tool: "app_update_external_storage",
+    args: { name: "archive-s3", storage_type: "s3", bucket: "my-bucket-2" },
+    path: "updateExternalStorage",
+    payload: { name: "archive-s3", storage_type: "s3", bucket: "my-bucket-2" },
+  },
+  {
+    tool: "app_delete_external_storage",
+    args: { name: "archive-s3" },
+    path: "deleteExternalStorage",
+    payload: { name: "archive-s3" },
+  },
+  {
+    tool: "app_check_external_storage",
+    args: { name: "archive-s3" },
+    path: "checkExternalStorage",
+    payload: { name: "archive-s3" },
+  },
+];
+
 export const ALL_CASES: ToolCase[] = [
   ...tokenCases,
   ...userCases,
+  ...deviceAndGroupCases,
   ...channelCases,
   ...messageCases,
+  ...pollCases,
   ...chatAdminCases,
+  ...commandAndBatchCases,
   ...moderationCases,
+  ...moderationPolicyCases,
   ...callCases,
   ...participantCases,
   ...mediaCases,
   ...videoAdminCases,
+  ...videoAnalyticsCases,
   ...appCases,
+  ...platformCases,
 ];
