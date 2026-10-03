@@ -56,6 +56,11 @@ const sendMessage = defineTool({
       .optional()
       .describe("For thread replies, also show the reply in the main channel"),
     quoted_message_id: z.string().optional().describe("Message ID this message quotes"),
+    poll_id: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("ID of a poll created with chat_create_poll to attach to this message"),
     mentioned_users: z
       .array(z.string().min(1))
       .max(25)
@@ -77,6 +82,7 @@ const sendMessage = defineTool({
         parent_id: args.parent_id,
         show_in_channel: args.show_in_channel,
         quoted_message_id: args.quoted_message_id,
+        poll_id: args.poll_id,
         mentioned_users: args.mentioned_users,
         attachments: toAttachments(args.attachments),
         silent: args.silent,

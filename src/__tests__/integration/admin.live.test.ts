@@ -1,3 +1,4 @@
+import { generateKeyPairSync } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { fixtureId, hasCredentials, LiveHarness } from "./harness.js";
 
@@ -194,56 +195,105 @@ suite("live: channel types, call types and app settings", () => {
       expect(roles.roles.length).toBeGreaterThan(0);
 
       const roleName = fixtureId("role").replace(/-/g, "").slice(0, 18);
-      const createdRole = await harness.callEither("app_create_role", { name: roleName });
-      expect(createdRole.text).not.toMatch(SCHEMA_ERROR);
+      const createdRole = await harness.call("app_create_role", { name: roleName });
       harness.onCleanup(async () => {
         await harness.callEither("app_delete_role", { name: roleName });
       });
+      expect(createdRole.role.name).toBe(roleName);
 
-      const deletedRole = await harness.callEither("app_delete_role", { name: roleName });
-      expect(deletedRole.text).not.toMatch(SCHEMA_ERROR);
+      await eventually(
+        () => harness.call("app_list_roles", {}),
+        (r) => r.roles.some((role: any) => role.name === roleName),
+        "role creation"
+      );
+
+      const deletedRole = await harness.call("app_delete_role", { name: roleName });
+      expect(deletedRole.duration).toBeDefined();
     }
   );
 
   it(
-    "lists push providers without leaking secrets and reaches push/webhook/storage endpoints",
-    { timeout: 30_000 },
+    "upserts an APN push provider, verifies secret redaction across tools, and manages external storage",
+    { timeout: 45_000 },
     async () => {
-      const providers = await harness.call("app_list_push_providers", {});
-      expect(Array.isArray(providers.push_providers)).toBe(true);
-      for (const provider of providers.push_providers) {
-        expect(provider.apn_auth_key).toBeUndefined();
-        expect(provider.apn_p12_cert).toBeUndefined();
-        expect(provider.firebase_credentials).toBeUndefined();
-        expect(provider.firebase_server_key).toBeUndefined();
-        expect(provider.huawei_app_secret).toBeUndefined();
-        expect(provider.xiaomi_app_secret).toBeUndefined();
-      }
+      const { privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+      const apnAuthKey = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
 
       const providerName = fixtureId("pushprov");
-      const upsertProvider = await harness.callEither("app_upsert_push_provider", {
-        type: "firebase",
+      const upsertProvider = await harness.call("app_upsert_push_provider", {
+        type: "apn",
         name: providerName,
-        description: "MCP test push provider",
-        firebase_credentials: '{"type":"service_account","project_id":"invalid"}',
+        description: "MCP test APN provider",
+        apn_auth_key: apnAuthKey,
+        apn_key_id: "ABCD123456",
+        apn_team_id: "TEAM123456",
+        apn_topic: "com.example.mcptest",
+        apn_development: true,
       });
-      expect(upsertProvider.text).not.toMatch(SCHEMA_ERROR);
-      if (upsertProvider.ok) {
-        harness.onCleanup(async () => {
-          await harness.callEither("app_delete_push_provider", {
-            type: "firebase",
-            name: providerName,
-          });
+      harness.onCleanup(async () => {
+        await harness.callEither("app_delete_push_provider", {
+          type: "apn",
+          name: providerName,
         });
+      });
+      expect(upsertProvider.push_provider.name).toBe(providerName);
+      expect(upsertProvider.push_provider.apn_auth_key).toBeUndefined();
+
+      const listedCompact = await harness.call("app_list_push_providers", {});
+      const matchedCompact = listedCompact.push_providers.find((p: any) => p.name === providerName);
+      expect(matchedCompact).toBeDefined();
+      expect(matchedCompact.apn_auth_key).toBeUndefined();
+
+      const listedVerbose = await harness.call("app_list_push_providers", { verbose: true });
+      const matchedVerbose = listedVerbose.push_providers.find((p: any) => p.name === providerName);
+      expect(matchedVerbose).toBeDefined();
+      expect(matchedVerbose.apn_auth_key).toBeUndefined();
+
+      const settingsCompact = await harness.call("app_get_settings", {});
+      expect(settingsCompact.app.sns_secret).toBeUndefined();
+      expect(settingsCompact.app.sqs_secret).toBeUndefined();
+      const settingsProvidersCompact = settingsCompact.app?.push_notifications?.providers ?? [];
+      for (const provider of settingsProvidersCompact) {
+        expect(provider.apn_auth_key).toBeUndefined();
       }
 
-      const deleteProvider = await harness.callEither("app_delete_push_provider", {
-        type: "firebase",
+      // Raw GetApp embeds every channel and call type config (~55KB), which
+      // exceeds the default 30KB cap; raise the cap to verify that verbose:true
+      // also strips push provider keys and SQS/SNS secrets in the handler.
+      const prevMaxBytes = process.env.STREAM_MCP_MAX_RESPONSE_BYTES;
+      process.env.STREAM_MCP_MAX_RESPONSE_BYTES = "200000";
+      try {
+        const settingsVerbose = await harness.call("app_get_settings", { verbose: true });
+        expect(settingsVerbose.app.sns_secret).toBeUndefined();
+        expect(settingsVerbose.app.sqs_secret).toBeUndefined();
+        const settingsProvidersVerbose = settingsVerbose.app?.push_notifications?.providers ?? [];
+        for (const provider of settingsProvidersVerbose) {
+          expect(provider.apn_auth_key).toBeUndefined();
+        }
+      } finally {
+        if (prevMaxBytes === undefined) delete process.env.STREAM_MCP_MAX_RESPONSE_BYTES;
+        else process.env.STREAM_MCP_MAX_RESPONSE_BYTES = prevMaxBytes;
+      }
+
+      const settingsResource = await harness.readResource("stream://app/settings");
+      expect(settingsResource.app.sns_secret).toBeUndefined();
+      expect(settingsResource.app.sqs_secret).toBeUndefined();
+      const resourceProviders = settingsResource.app?.push_notifications?.providers ?? [];
+      for (const provider of resourceProviders) {
+        expect(provider.apn_auth_key).toBeUndefined();
+      }
+
+      await harness.call("app_delete_push_provider", {
+        type: "apn",
         name: providerName,
       });
-      expect(deleteProvider.text).not.toMatch(SCHEMA_ERROR);
+
+      const pushUser = fixtureId("pushusr");
+      await harness.call("chat_upsert_users", { users: [{ id: pushUser, name: "Push User" }] });
+      harness.trackUsers(pushUser);
 
       const checkPushRes = await harness.callEither("app_check_push", {
+        user_id: pushUser,
         skip_devices: true,
         event_type: "message.new",
       });
@@ -259,38 +309,126 @@ suite("live: channel types, call types and app settings", () => {
       expect(storages.external_storages).toBeDefined();
 
       const storageName = fixtureId("extstore");
-      const createStorage = await harness.callEither("app_create_external_storage", {
+      const createStorage = await harness.call("app_create_external_storage", {
         name: storageName,
         storage_type: "s3",
         bucket: "mcp-nonexistent-test-bucket",
         aws_s3: { s3_region: "us-east-1" },
       });
-      expect(createStorage.text).not.toMatch(SCHEMA_ERROR);
-      if (createStorage.ok) {
-        harness.onCleanup(async () => {
-          await harness.callEither("app_delete_external_storage", {
-            name: storageName,
-          });
+      harness.onCleanup(async () => {
+        await harness.callEither("app_delete_external_storage", {
+          name: storageName,
         });
-      }
+      });
+      expect(createStorage.duration).toBeDefined();
 
-      const updateStorage = await harness.callEither("app_update_external_storage", {
+      await eventually(
+        () => harness.call("app_list_external_storage", {}),
+        (s) => Boolean(s.external_storages?.[storageName]),
+        "external storage creation"
+      );
+
+      const updateStorage = await harness.call("app_update_external_storage", {
         name: storageName,
         storage_type: "s3",
         bucket: "mcp-nonexistent-test-bucket-2",
         aws_s3: { s3_region: "us-east-1" },
       });
-      expect(updateStorage.text).not.toMatch(SCHEMA_ERROR);
+      expect(updateStorage.duration).toBeDefined();
+
+      await eventually(
+        () => harness.call("app_list_external_storage", {}),
+        (s) => s.external_storages?.[storageName]?.bucket === "mcp-nonexistent-test-bucket-2",
+        "external storage update"
+      );
 
       const checkStorage = await harness.callEither("app_check_external_storage", {
         name: storageName,
       });
       expect(checkStorage.text).not.toMatch(SCHEMA_ERROR);
 
-      const deleteStorage = await harness.callEither("app_delete_external_storage", {
+      const deleteStorage = await harness.call("app_delete_external_storage", {
         name: storageName,
       });
-      expect(deleteStorage.text).not.toMatch(SCHEMA_ERROR);
+      expect(deleteStorage.duration).toBeDefined();
     }
   );
+
+  it("reads all MCP resources and prompts against the live API", { timeout: 45_000 }, async () => {
+    const { resources } = await harness.listResources();
+    expect(resources.map((r) => r.uri)).toEqual(
+      expect.arrayContaining([
+        "stream://app/settings",
+        "stream://app/rate-limits",
+        "stream://chat/channel-types",
+        "stream://video/call-types",
+        "stream://moderation/blocklists",
+      ])
+    );
+
+    const { resourceTemplates } = await harness.listResourceTemplates();
+    expect(resourceTemplates.map((t) => t.uriTemplate)).toEqual(
+      expect.arrayContaining([
+        "stream://chat/channel-types/{name}",
+        "stream://video/call-types/{name}",
+      ])
+    );
+
+    const appSettings = await harness.readResource("stream://app/settings");
+    expect(appSettings.app.name).toBeDefined();
+    expect(appSettings.app.sns_secret).toBeUndefined();
+    expect(appSettings.app.sqs_secret).toBeUndefined();
+
+    const rateLimits = await harness.readResource("stream://app/rate-limits");
+    expect(rateLimits.server_side).toBeDefined();
+
+    const channelTypes = await harness.readResource("stream://chat/channel-types");
+    expect(channelTypes.channel_types.map((t: any) => t.name)).toContain("messaging");
+
+    const messagingType = await harness.readResource("stream://chat/channel-types/messaging");
+    expect(messagingType.name).toBe("messaging");
+    expect(messagingType.grants).toBeDefined();
+
+    const callTypes = await harness.readResource("stream://video/call-types");
+    expect(callTypes.call_types.map((t: any) => t.name)).toContain("default");
+
+    const defaultCallType = await harness.readResource("stream://video/call-types/default");
+    expect(defaultCallType.name).toBe("default");
+    expect(defaultCallType.grants).toBeDefined();
+
+    const blocklists = await harness.readResource("stream://moderation/blocklists");
+    expect(Array.isArray(blocklists.blocklists)).toBe(true);
+
+    const { prompts } = await harness.listPrompts();
+    expect(prompts.map((p) => p.name).sort()).toEqual([
+      "call-quality-debug",
+      "channel-incident-debug",
+      "moderation-triage",
+      "rate-limit-diagnosis",
+    ]);
+
+    const triage = await harness.getPrompt("moderation-triage", {
+      entity_type: "stream:chat:v1:message",
+      limit: "10",
+    });
+    expect(JSON.stringify(triage.messages)).toContain("moderation_query_review_queue");
+
+    const callDebug = await harness.getPrompt("call-quality-debug", {
+      call_type: "default",
+      call_id: "test-call",
+      session_id: "sess-1",
+    });
+    expect(JSON.stringify(callDebug.messages)).toContain("default:test-call");
+
+    const channelDebug = await harness.getPrompt("channel-incident-debug", {
+      channel_type: "messaging",
+      channel_id: "general",
+    });
+    expect(JSON.stringify(channelDebug.messages)).toContain("messaging:general");
+
+    const rateLimitPrompt = await harness.getPrompt("rate-limit-diagnosis", {
+      endpoints: "SendMessage,QueryChannels",
+    });
+    expect(JSON.stringify(rateLimitPrompt.messages)).toContain("SendMessage,QueryChannels");
+  });
 });

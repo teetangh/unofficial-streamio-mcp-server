@@ -1359,9 +1359,23 @@ export const moderationPolicyCases: ToolCase[] = [
   },
   {
     tool: "moderation_upsert_config",
-    args: { key: "default", async: true },
+    args: {
+      key: "default",
+      async: true,
+      velocity_filter_config: {
+        enabled: true,
+        rules: [{ action: "flag", fast_spam_threshold: 5, fast_spam_ttl: 60 }],
+      },
+    },
     path: "moderation.upsertConfig",
-    payload: { key: "default", async: true },
+    payload: {
+      key: "default",
+      async: true,
+      velocity_filter_config: {
+        enabled: true,
+        rules: [{ action: "flag", fast_spam_threshold: 5, fast_spam_ttl: 60 }],
+      },
+    },
   },
   {
     tool: "moderation_delete_config",
@@ -1383,9 +1397,25 @@ export const moderationPolicyCases: ToolCase[] = [
   },
   {
     tool: "moderation_upsert_rule",
-    args: { name: "spam-rule", rule_type: "message", enabled: true },
+    args: {
+      name: "spam-rule",
+      rule_type: "user",
+      enabled: true,
+      conditions: [
+        { type: "user_created_within", user_created_within_params: { max_age: "24h" } },
+        { type: "user_role", user_role_params: { role: "user", operator: "eq" } },
+      ],
+    },
     path: "moderation.upsertModerationRule",
-    payload: { name: "spam-rule", rule_type: "message", enabled: true },
+    payload: {
+      name: "spam-rule",
+      rule_type: "user",
+      enabled: true,
+      conditions: [
+        { type: "user_created_within", user_created_within_params: { max_age: "24h" } },
+        { type: "user_role", user_role_params: { role: "user", operator: "eq" } },
+      ],
+    },
   },
   {
     tool: "moderation_delete_rule",

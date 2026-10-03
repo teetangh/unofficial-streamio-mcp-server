@@ -19,14 +19,14 @@ const moderationActionEnum = z.enum([
   "bounce_remove",
 ]);
 
-const bodyguardSeverityRuleSchema = z.object({
+const bodyguardSeverityRuleSchema = z.looseObject({
   action: z
     .enum(["keep", "flag", "mask", "shadow", "remove", "bounce", "bounce_flag", "bounce_remove"])
     .describe("Moderation action for this severity level"),
   severity: z.enum(["low", "medium", "high", "critical"]).describe("Severity level threshold"),
 });
 
-const bodyguardRuleSchema = z.object({
+const bodyguardRuleSchema = z.looseObject({
   label: z.string().min(1).describe("Harm category label"),
   action: z
     .enum([
@@ -48,7 +48,7 @@ const bodyguardRuleSchema = z.object({
     .describe("Per-severity action overrides"),
 });
 
-const aiTextConfigSchema = z.object({
+const aiTextConfigSchema = z.looseObject({
   async: z.boolean().optional().describe("Run AI text moderation asynchronously"),
   enabled: z.boolean().optional().describe("Enable AI text moderation"),
   profile: z.string().optional().describe("Bodyguard credential profile name"),
@@ -59,7 +59,7 @@ const aiTextConfigSchema = z.object({
     .describe("Default severity rules"),
 });
 
-const awsRekognitionRuleSchema = z.object({
+const awsRekognitionRuleSchema = z.looseObject({
   label: z.string().min(1).describe("Image or video harm label"),
   min_confidence: z.number().describe("Minimum confidence threshold (0-100)"),
   action: moderationActionEnum.describe("Action taken when label exceeds threshold"),
@@ -69,12 +69,12 @@ const awsRekognitionRuleSchema = z.object({
     .describe("L2 subclassification overrides"),
 });
 
-const aiImageConfigSchema = z.object({
+const aiImageConfigSchema = z.looseObject({
   async: z.boolean().optional().describe("Run AI image moderation asynchronously"),
   enabled: z.boolean().optional().describe("Enable AI image moderation"),
   ocr_rules: z
     .array(
-      z.object({
+      z.looseObject({
         label: z.string().min(1).describe("OCR rule label"),
         action: moderationActionEnum.describe("Action taken when OCR rule matches"),
       })
@@ -84,18 +84,18 @@ const aiImageConfigSchema = z.object({
   rules: z.array(awsRekognitionRuleSchema).optional().describe("Image classification rules"),
 });
 
-const aiVideoConfigSchema = z.object({
+const aiVideoConfigSchema = z.looseObject({
   async: z.boolean().optional().describe("Run AI video moderation asynchronously"),
   enabled: z.boolean().optional().describe("Enable AI video moderation"),
   rules: z.array(awsRekognitionRuleSchema).optional().describe("Video classification rules"),
 });
 
-const aiAudioConfigSchema = z.object({
+const aiAudioConfigSchema = z.looseObject({
   profile: z.string().optional().describe("Audio moderation profile name"),
   rules: z.array(bodyguardRuleSchema).optional().describe("Audio moderation rules"),
 });
 
-const blockListConfigSchema = z.object({
+const blockListConfigSchema = z.looseObject({
   async: z.boolean().optional().describe("Run blocklist check asynchronously"),
   enabled: z.boolean().optional().describe("Enable word blocklist moderation"),
   match_substring: z
@@ -104,7 +104,7 @@ const blockListConfigSchema = z.object({
     .describe("Match blocked words as substrings inside tokens"),
   rules: z
     .array(
-      z.object({
+      z.looseObject({
         action: z
           .enum([
             "flag",
@@ -125,12 +125,12 @@ const blockListConfigSchema = z.object({
     .describe("Blocklist rules to evaluate"),
 });
 
-const automodConfigSchema = z.object({
+const automodConfigSchema = z.looseObject({
   async: z.boolean().optional().describe("Run check asynchronously"),
   enabled: z.boolean().optional().describe("Enable this automod filter"),
   rules: z
     .array(
-      z.object({
+      z.looseObject({
         label: z.string().min(1).describe("Automod rule label"),
         threshold: z.number().describe("Score threshold (0-1) required to trigger"),
         action: moderationActionEnum.describe("Action taken when threshold is exceeded"),
@@ -140,12 +140,12 @@ const automodConfigSchema = z.object({
     .describe("Filter rules and thresholds"),
 });
 
-const automodSemanticFiltersConfigSchema = z.object({
+const automodSemanticFiltersConfigSchema = z.looseObject({
   async: z.boolean().optional().describe("Run semantic filter check asynchronously"),
   enabled: z.boolean().optional().describe("Enable semantic filters"),
   rules: z
     .array(
-      z.object({
+      z.looseObject({
         name: z.string().min(1).describe("Semantic filter name"),
         threshold: z.number().describe("Similarity threshold"),
         action: moderationActionEnum.describe("Action taken when filter matches"),
@@ -155,13 +155,13 @@ const automodSemanticFiltersConfigSchema = z.object({
     .describe("Semantic filter rules"),
 });
 
-const llmConfigSchema = z.object({
+const llmConfigSchema = z.looseObject({
   app_context: z.string().optional().describe("Application context provided to the moderation LLM"),
   async: z.boolean().optional().describe("Run LLM moderation asynchronously"),
   enabled: z.boolean().optional().describe("Enable LLM moderation"),
   rules: z
     .array(
-      z.object({
+      z.looseObject({
         label: z.string().min(1).describe("Harm category label"),
         action: z
           .enum(["flag", "shadow", "remove", "bounce", "bounce_flag", "bounce_remove", "keep"])
@@ -182,13 +182,13 @@ const llmConfigSchema = z.object({
     .describe("Custom descriptions per severity level"),
 });
 
-const floodConfigSchema = z.object({
+const floodConfigSchema = z.looseObject({
   allowlist: z
     .array(z.string().min(1))
     .optional()
     .describe("User IDs exempt from flood protection"),
   identical: z
-    .object({
+    .looseObject({
       action: z.string().optional().describe("Action when identical message flood is detected"),
       enabled: z.boolean().optional().describe("Enable identical message flood detection"),
       threshold: z.int().optional().describe("Max identical messages in time window"),
@@ -197,7 +197,7 @@ const floodConfigSchema = z.object({
     .optional()
     .describe("Identical message flood settings"),
   similar: z
-    .object({
+    .looseObject({
       action: z.string().optional().describe("Action when similar message flood is detected"),
       enabled: z.boolean().optional().describe("Enable similar message flood detection"),
       similarity_distance: z.int().optional().describe("Edit distance threshold"),
@@ -208,44 +208,147 @@ const floodConfigSchema = z.object({
     .describe("Similar message flood settings"),
 });
 
-const googleVisionConfigSchema = z.object({
+const googleVisionConfigSchema = z.looseObject({
   enabled: z.boolean().optional().describe("Enable Google Cloud Vision image moderation"),
 });
 
-const velocityFilterConfigSchema = z.object({
+const velocityFilterRuleSchema = z.looseObject({
+  action: z
+    .enum(["flag", "shadow", "remove", "ban"])
+    .describe("Action taken when velocity threshold is exceeded"),
+  ban_duration: z.int().optional().describe("Ban duration in seconds"),
+  cascading_action: z
+    .enum(["flag", "shadow", "remove", "ban"])
+    .optional()
+    .describe("Escalated action on repeated violations"),
+  cascading_threshold: z.int().optional().describe("Violation count before cascading_action runs"),
+  check_message_context: z.boolean().optional().describe("Evaluate message context"),
+  fast_spam_threshold: z.int().optional().describe("Fast spam message count threshold"),
+  fast_spam_ttl: z.int().optional().describe("Fast spam window in seconds"),
+  ip_ban: z.boolean().optional().describe("Also ban the user's IP address"),
+  probation_period: z.int().optional().describe("Probation period in seconds"),
+  shadow_ban: z.boolean().optional().describe("Apply a shadow ban"),
+  slow_spam_ban_duration: z.int().optional().describe("Ban duration for slow spam in seconds"),
+  slow_spam_threshold: z.int().optional().describe("Slow spam message count threshold"),
+  slow_spam_ttl: z.int().optional().describe("Slow spam window in seconds"),
+  url_only: z.boolean().optional().describe("Count only messages containing URLs"),
+});
+
+const velocityFilterConfigSchema = z.looseObject({
   advanced_filters: z.boolean().optional().describe("Enable advanced velocity filters"),
   async: z.boolean().optional().describe("Run velocity filter asynchronously"),
   cascading_actions: z.boolean().optional().describe("Enable cascading escalation actions"),
   cids_per_user: z.int().optional().describe("Max channels a user can message per window"),
   enabled: z.boolean().optional().describe("Enable velocity spam filter"),
   first_message_only: z.boolean().optional().describe("Evaluate only first messages in channels"),
+  rules: z.array(velocityFilterRuleSchema).optional().describe("Velocity spam filter rules"),
 });
 
-const ruleConditionSchema = z.object({
+const ruleConditionSchema = z.looseObject({
   type: z
     .string()
     .optional()
     .describe("Condition type, e.g. 'content_count', 'text_rule', 'image_rule', or 'user_rule'"),
   confidence: z.number().optional().describe("Minimum confidence threshold"),
+  call_custom_property_params: z
+    .looseObject({
+      operator: z.string().optional().describe("Comparison operator"),
+      property_key: z.string().optional().describe("Custom call property key"),
+    })
+    .optional()
+    .describe("Parameters for call_custom_property conditions"),
+  call_type_rule_params: z
+    .looseObject({
+      call_type: z.string().optional().describe("Call type name"),
+    })
+    .optional()
+    .describe("Parameters for call_type conditions"),
+  call_violation_count_params: z
+    .looseObject({
+      threshold: z.int().optional().describe("Violation count threshold in call"),
+      time_window: z.string().optional().describe("Evaluation window, e.g. '10m'"),
+    })
+    .optional()
+    .describe("Parameters for call_violation_count conditions"),
+  channel_message_count_rule_params: z
+    .looseObject({
+      operator: z.string().optional().describe("Comparison operator"),
+      threshold: z.int().optional().describe("Channel message count threshold"),
+    })
+    .optional()
+    .describe("Parameters for channel_message_count conditions"),
+  closed_caption_rule_params: z
+    .looseObject({
+      harm_labels: z.array(z.string()).optional().describe("Closed caption harm labels"),
+      llm_harm_labels: z
+        .record(z.string(), z.string())
+        .optional()
+        .describe("LLM harm label severity map"),
+      severity: z.string().optional().describe("Minimum severity"),
+      threshold: z.int().optional().describe("Violation count threshold"),
+      time_window: z.string().optional().describe("Evaluation window"),
+    })
+    .optional()
+    .describe("Parameters for closed_caption conditions"),
   content_count_rule_params: z
-    .object({
+    .looseObject({
       threshold: z.int().optional().describe("Message/content count threshold"),
       time_window: z.string().optional().describe("Evaluation window, e.g. '1h' or '24h'"),
     })
     .optional()
     .describe("Parameters for content_count conditions"),
-  text_rule_params: z
-    .object({
-      contains_url: z.boolean().optional().describe("Require text to contain a URL"),
-      harm_labels: z.array(z.string()).optional().describe("Harm labels to match"),
-      severity: z.string().optional().describe("Minimum severity"),
-      threshold: z.int().optional().describe("Violation count threshold"),
-      time_window: z.string().optional().describe("Evaluation window, e.g. '1h'"),
+  content_custom_property_count_params: z
+    .looseObject({
+      operator: z.string().optional().describe("Comparison operator"),
+      property_key: z.string().optional().describe("Custom content property key"),
+      threshold: z.int().optional().describe("Count threshold"),
+      time_window: z.string().optional().describe("Evaluation window"),
     })
     .optional()
-    .describe("Parameters for text_rule conditions"),
+    .describe("Parameters for content_custom_property_count conditions"),
+  content_custom_property_params: z
+    .looseObject({
+      operator: z.string().optional().describe("Comparison operator"),
+      property_key: z.string().optional().describe("Custom content property key"),
+    })
+    .optional()
+    .describe("Parameters for content_custom_property conditions"),
+  content_flag_count_rule_params: z
+    .looseObject({
+      threshold: z.int().optional().describe("Flag count threshold on content"),
+    })
+    .optional()
+    .describe("Parameters for content_flag_count conditions"),
+  flood_identical_params: z
+    .looseObject({
+      allowlist: z.array(z.string()).optional().describe("Exempt user IDs"),
+      min_text_length: z.int().optional().describe("Minimum text length to evaluate"),
+      threshold: z.int().optional().describe("Identical message threshold"),
+      time_window: z.string().optional().describe("Evaluation window"),
+      track_across_users: z.boolean().optional().describe("Track identical messages across users"),
+    })
+    .optional()
+    .describe("Parameters for flood_identical conditions"),
+  flood_similar_params: z
+    .looseObject({
+      allowlist: z.array(z.string()).optional().describe("Exempt user IDs"),
+      min_text_length: z.int().optional().describe("Minimum text length to evaluate"),
+      similarity_distance: z.int().optional().describe("Edit distance threshold"),
+      threshold: z.int().optional().describe("Similar message threshold"),
+      time_window: z.string().optional().describe("Evaluation window"),
+    })
+    .optional()
+    .describe("Parameters for flood_similar conditions"),
+  image_content_params: z
+    .looseObject({
+      harm_labels: z.array(z.string()).optional().describe("Image harm labels"),
+      label_operator: z.string().optional().describe("Operator combining labels"),
+      min_confidence: z.number().optional().describe("Minimum confidence threshold"),
+    })
+    .optional()
+    .describe("Parameters for image_content conditions"),
   image_rule_params: z
-    .object({
+    .looseObject({
       harm_labels: z.array(z.string()).optional().describe("Image harm labels to match"),
       min_confidence: z.number().optional().describe("Minimum confidence threshold"),
       threshold: z.int().optional().describe("Violation count threshold"),
@@ -253,42 +356,167 @@ const ruleConditionSchema = z.object({
     })
     .optional()
     .describe("Parameters for image_rule conditions"),
+  ip_content_count_rule_params: z
+    .looseObject({
+      threshold: z.int().optional().describe("Content count threshold per IP"),
+      time_window: z.string().optional().describe("Evaluation window"),
+    })
+    .optional()
+    .describe("Parameters for ip_content_count conditions"),
+  ip_flag_count_rule_params: z
+    .looseObject({
+      harm_labels: z.array(z.string()).optional().describe("Harm labels"),
+      severity: z.string().optional().describe("Minimum severity"),
+      threshold: z.int().optional().describe("Flag count threshold per IP"),
+      time_window: z.string().optional().describe("Evaluation window"),
+    })
+    .optional()
+    .describe("Parameters for ip_flag_count conditions"),
+  keyframe_ocr_rule_params: z
+    .looseObject({
+      harm_labels: z.array(z.string()).optional().describe("Keyframe OCR harm labels"),
+      threshold: z.int().optional().describe("Violation count threshold"),
+      time_window: z.string().optional().describe("Evaluation window"),
+    })
+    .optional()
+    .describe("Parameters for keyframe_ocr conditions"),
+  keyframe_rule_params: z
+    .looseObject({
+      harm_labels: z.array(z.string()).optional().describe("Keyframe harm labels"),
+      min_confidence: z.number().optional().describe("Minimum confidence threshold"),
+      threshold: z.int().optional().describe("Violation count threshold"),
+      time_window: z.string().optional().describe("Evaluation window"),
+    })
+    .optional()
+    .describe("Parameters for keyframe_rule conditions"),
+  ocr_content_params: z
+    .looseObject({
+      harm_labels: z.array(z.string()).optional().describe("OCR harm labels"),
+      label_operator: z.string().optional().describe("Operator combining labels"),
+      severity: z.string().optional().describe("Minimum severity"),
+    })
+    .optional()
+    .describe("Parameters for ocr_content conditions"),
+  text_content_params: z
+    .looseObject({
+      blocklist_match: z.array(z.string()).optional().describe("Blocklist names to match"),
+      contains_url: z.boolean().optional().describe("Require text to contain a URL"),
+      harm_labels: z.array(z.string()).optional().describe("Text harm labels"),
+      label_operator: z.string().optional().describe("Operator combining labels"),
+      llm_harm_labels: z
+        .record(z.string(), z.string())
+        .optional()
+        .describe("LLM harm label severity map"),
+      severity: z.string().optional().describe("Minimum severity"),
+      text_length: z.int().optional().describe("Text length threshold"),
+      text_length_operator: z.string().optional().describe("Text length comparison operator"),
+    })
+    .optional()
+    .describe("Parameters for text_content conditions"),
+  text_rule_params: z
+    .looseObject({
+      blocklist_match: z.array(z.string()).optional().describe("Blocklist names to match"),
+      contains_url: z.boolean().optional().describe("Require text to contain a URL"),
+      harm_labels: z.array(z.string()).optional().describe("Harm labels to match"),
+      llm_harm_labels: z
+        .record(z.string(), z.string())
+        .optional()
+        .describe("LLM harm label severity map"),
+      semantic_filter_min_threshold: z
+        .number()
+        .optional()
+        .describe("Minimum semantic filter threshold"),
+      semantic_filter_names: z
+        .array(z.string())
+        .optional()
+        .describe("Semantic filter names to match"),
+      severity: z.string().optional().describe("Minimum severity"),
+      threshold: z.int().optional().describe("Violation count threshold"),
+      time_window: z.string().optional().describe("Evaluation window, e.g. '1h'"),
+    })
+    .optional()
+    .describe("Parameters for text_rule conditions"),
+  user_channel_count_params: z
+    .looseObject({
+      threshold: z.int().optional().describe("Channel count threshold"),
+      time_window: z.string().optional().describe("Evaluation window"),
+    })
+    .optional()
+    .describe("Parameters for user_channel_count conditions"),
+  user_created_within_params: z
+    .looseObject({
+      max_age: z.string().optional().describe("Maximum account age, e.g. '24h' or '7d'"),
+    })
+    .optional()
+    .describe("Parameters for user_created_within conditions"),
+  user_custom_property_params: z
+    .looseObject({
+      operator: z.string().optional().describe("Comparison operator"),
+      property_key: z.string().optional().describe("Custom user property key"),
+    })
+    .optional()
+    .describe("Parameters for user_custom_property conditions"),
+  user_flag_count_rule_params: z
+    .looseObject({
+      threshold: z.int().optional().describe("Flag count threshold on user"),
+    })
+    .optional()
+    .describe("Parameters for user_flag_count conditions"),
+  user_identical_content_count_params: z
+    .looseObject({
+      threshold: z.int().optional().describe("Identical content count threshold"),
+      time_window: z.string().optional().describe("Evaluation window"),
+    })
+    .optional()
+    .describe("Parameters for user_identical_content_count conditions"),
+  user_identical_image_count_params: z
+    .looseObject({
+      match: z.string().optional().describe("Image match mode"),
+      similarity_distance: z.int().optional().describe("Perceptual hash distance threshold"),
+      threshold: z.int().optional().describe("Identical image count threshold"),
+      time_window: z.string().optional().describe("Evaluation window"),
+    })
+    .optional()
+    .describe("Parameters for user_identical_image_count conditions"),
+  user_reaction_count_params: z
+    .looseObject({
+      count: z.string().optional().describe("Reaction count expression"),
+      threshold: z.int().optional().describe("Reaction count threshold"),
+      time_window: z.string().optional().describe("Evaluation window"),
+    })
+    .optional()
+    .describe("Parameters for user_reaction_count conditions"),
+  user_role_params: z
+    .looseObject({
+      operator: z.string().optional().describe("Comparison operator"),
+      role: z.string().optional().describe("User role to match"),
+    })
+    .optional()
+    .describe("Parameters for user_role conditions"),
+  user_rule_params: z
+    .looseObject({
+      max_age: z.string().optional().describe("Maximum account age, e.g. '7d'"),
+    })
+    .optional()
+    .describe("Parameters for user_rule conditions"),
+  video_content_params: z
+    .looseObject({
+      harm_labels: z.array(z.string()).optional().describe("Video harm labels"),
+      label_operator: z.string().optional().describe("Operator combining labels"),
+    })
+    .optional()
+    .describe("Parameters for video_content conditions"),
   video_rule_params: z
-    .object({
+    .looseObject({
       harm_labels: z.array(z.string()).optional().describe("Video harm labels to match"),
       threshold: z.int().optional().describe("Violation count threshold"),
       time_window: z.string().optional().describe("Evaluation window, e.g. '1h'"),
     })
     .optional()
     .describe("Parameters for video_rule conditions"),
-  user_rule_params: z
-    .object({
-      max_age: z.string().optional().describe("Maximum account age, e.g. '7d'"),
-    })
-    .optional()
-    .describe("Parameters for user_rule conditions"),
-  content_flag_count_rule_params: z
-    .object({
-      threshold: z.int().optional().describe("Flag count threshold on content"),
-    })
-    .optional()
-    .describe("Parameters for content_flag_count conditions"),
-  user_flag_count_rule_params: z
-    .object({
-      threshold: z.int().optional().describe("Flag count threshold on user"),
-    })
-    .optional()
-    .describe("Parameters for user_flag_count conditions"),
-  call_violation_count_params: z
-    .object({
-      threshold: z.int().optional().describe("Violation count threshold in call"),
-      time_window: z.string().optional().describe("Evaluation window, e.g. '10m'"),
-    })
-    .optional()
-    .describe("Parameters for call_violation_count conditions"),
 });
 
-const ruleActionSchema = z.object({
+const ruleActionSchema = z.looseObject({
   type: z
     .enum([
       "ban_user",
@@ -317,7 +545,7 @@ const ruleActionSchema = z.object({
     .optional()
     .describe("Skip creating a review queue inbox item when this action triggers"),
   ban_options: z
-    .object({
+    .looseObject({
       delete_messages: z
         .enum(["soft", "pruning", "hard"])
         .optional()
@@ -330,7 +558,7 @@ const ruleActionSchema = z.object({
     .optional()
     .describe("Options when action type is ban_user"),
   call_options: z
-    .object({
+    .looseObject({
       duration: z.int().optional().describe("Action duration in seconds"),
       flag_reason: z.string().optional().describe("Reason recorded on the flag"),
       kick_reason: z.string().optional().describe("Reason shown when kicking user from call"),
@@ -342,7 +570,7 @@ const ruleActionSchema = z.object({
     .optional()
     .describe("Options for call moderation actions"),
   flag_user_options: z
-    .object({
+    .looseObject({
       reason: z.string().optional().describe("Reason for flagging the user"),
     })
     .optional()
@@ -582,7 +810,7 @@ const upsertModerationRule = defineTool({
       .describe("Rule condition objects evaluated against content or user state"),
     groups: z
       .array(
-        z.object({
+        z.looseObject({
           logic: z.string().optional().describe("Logical operator within the group: 'AND' or 'OR'"),
           conditions: z
             .array(ruleConditionSchema)
@@ -593,6 +821,27 @@ const upsertModerationRule = defineTool({
       .optional()
       .describe("Nested condition groups"),
     action: ruleActionSchema.optional().describe("Action executed when the rule conditions match"),
+    action_sequences: z
+      .array(
+        z.looseObject({
+          violation_number: z.int().optional().describe("Violation number in the sequence"),
+          actions: z.array(z.string()).optional().describe("Actions executed at this step"),
+          call_options: z
+            .looseObject({
+              duration: z.int().optional().describe("Action duration in seconds"),
+              flag_reason: z.string().optional().describe("Reason recorded on the flag"),
+              kick_reason: z.string().optional().describe("Reason shown when kicking user"),
+              mute_audio: z.boolean().optional().describe("Mute participant audio"),
+              mute_video: z.boolean().optional().describe("Mute participant video"),
+              reason: z.string().optional().describe("Moderation reason"),
+              warning_text: z.string().optional().describe("Warning message sent to participant"),
+            })
+            .optional()
+            .describe("Call action options for this step"),
+        })
+      )
+      .optional()
+      .describe("Escalation action sequences for call moderation rules"),
     logic: z.string().optional().describe("Boolean logic combining conditions, e.g. 'AND' or 'OR'"),
     team: z.string().optional().describe("Team the moderation rule belongs to"),
     user_id: z.string().optional().describe("User ID associated with the audit log entry"),
@@ -609,6 +858,7 @@ const upsertModerationRule = defineTool({
         conditions: args.conditions,
         groups: args.groups,
         action: args.action,
+        action_sequences: args.action_sequences,
         logic: args.logic,
         team: args.team,
         user_id: args.user_id,
