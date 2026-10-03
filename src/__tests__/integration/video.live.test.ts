@@ -242,7 +242,7 @@ suite("live: video", () => {
     expect(stop.text).not.toMatch(SCHEMA_ERROR);
   });
 
-  it("reaches the HLS broadcasting endpoints", async () => {
+  it("reaches the HLS broadcasting endpoints", { timeout: 30_000 }, async () => {
     const start = await harness.callEither("video_start_hls_broadcasting", call);
     expect(start.text).not.toMatch(SCHEMA_ERROR);
 
