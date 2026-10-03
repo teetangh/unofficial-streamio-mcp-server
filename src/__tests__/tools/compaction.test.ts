@@ -432,3 +432,69 @@ describe("app_get_rate_limits", () => {
     expect(out.unmatched_endpoints).toBeUndefined();
   });
 });
+
+describe("app_get_settings", () => {
+  const raw = {
+    duration: "5ms",
+    app: {
+      name: "demo-app",
+      sns_key: "AKIA...",
+      sns_secret: "SUPER_SECRET_SNS",
+      sqs_key: "AKIA...",
+      sqs_secret: "SUPER_SECRET_SQS",
+      channel_configs: { messaging: {} },
+      call_types: { default: {} },
+      policies: [],
+      grants: { user: ["read-channel"] },
+      datadog_info: { site: "datadoghq.com", api_key: "DD_SECRET" },
+      event_hooks: [{ id: "h1", webhook_url: "https://example.com", sns_secret: "HOOK_SECRET" }],
+      push_notifications: {
+        version: "v2",
+        offline_only: true,
+        apn: { enabled: true, development: true, key_id: "K1", auth_key: "PRIVATE_P8" },
+        firebase: { enabled: true, credentials_json: '{"private_key":"SECRET"}' },
+        huawei: { enabled: false, id: "hw1", secret: "HW_SECRET" },
+        xiaomi: { enabled: false, package_name: "com.pkg", secret: "XM_SECRET" },
+        providers: [
+          {
+            name: "ios-main",
+            type: "apn",
+            apn_key_id: "K1",
+            apn_team_id: "T1",
+            apn_topic: "com.example.app",
+            apn_auth_key: "-----BEGIN PRIVATE KEY-----",
+            firebase_credentials: '{"private_key":"SECRET"}',
+          },
+        ],
+      },
+    },
+  };
+
+  it("strips push credentials and SQS/SNS/Datadog secrets in both compact and handler output", async () => {
+    const compacted = view("app_get_settings", raw);
+    expect(compacted.app.sns_secret).toBeUndefined();
+    expect(compacted.app.sqs_secret).toBeUndefined();
+    expect(compacted.app.datadog_info.api_key).toBeUndefined();
+    expect(compacted.app.event_hooks[0].sns_secret).toBeUndefined();
+    expect(compacted.app.push_notifications.apn.auth_key).toBeUndefined();
+    expect(compacted.app.push_notifications.firebase.credentials_json).toBeUndefined();
+    expect(compacted.app.push_notifications.huawei.secret).toBeUndefined();
+    expect(compacted.app.push_notifications.xiaomi.secret).toBeUndefined();
+    expect(compacted.app.push_notifications.providers[0]).toEqual({
+      name: "ios-main",
+      type: "apn",
+      apn_key_id: "K1",
+      apn_team_id: "T1",
+      apn_topic: "com.example.app",
+    });
+
+    const handlerOut = (await tool("app_get_settings").handler({}, {
+      getApp: async () => raw,
+    } as never)) as typeof raw;
+    expect(handlerOut.app.sns_secret).toBeUndefined();
+    expect(handlerOut.app.sqs_secret).toBeUndefined();
+    expect(handlerOut.app.push_notifications.apn.auth_key).toBeUndefined();
+    expect(handlerOut.app.push_notifications.providers[0].apn_auth_key).toBeUndefined();
+    expect(handlerOut.app.push_notifications.providers[0].apn_key_id).toBe("K1");
+  });
+});

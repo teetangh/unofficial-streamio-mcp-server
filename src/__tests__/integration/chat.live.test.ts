@@ -216,7 +216,7 @@ suite("live: chat", () => {
   });
 
   it("reads a channel without being able to create one", async () => {
-    // The tool is annotated readOnlyHint, so an unknown id must 404 rather
+    // The tools are annotated readOnlyHint, so an unknown id must 404 rather
     // than mint the channel the caller was only asking about.
     const ghost = fixtureId("ghost");
     const error = await harness.callExpectingError("chat_get_channel", {
@@ -224,6 +224,12 @@ suite("live: chat", () => {
       channel_id: ghost,
     });
     expect(error).toMatch(/exist|not found/i);
+
+    const pinnedError = await harness.callExpectingError("chat_get_pinned_messages", {
+      channel_type: "messaging",
+      channel_id: ghost,
+    });
+    expect(pinnedError).toMatch(/exist|not found/i);
 
     const after = await harness.call("chat_query_channels", {
       filter_conditions: { cid: `messaging:${ghost}` },

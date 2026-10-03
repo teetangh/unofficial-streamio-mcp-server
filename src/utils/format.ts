@@ -55,7 +55,11 @@ function omissionMarker(omitted: number): Record<string, unknown> {
  * bounded by a request-side limit the caller chose — truncating those again
  * would silently contradict the limit they asked for.
  */
-export function shrink(value: unknown, maxArrayItems: number = MAX_ARRAY_ITEMS): unknown {
+export function shrink(
+  value: unknown,
+  maxArrayItems: number = MAX_ARRAY_ITEMS,
+  preserveKeys = false
+): unknown {
   if (value === null || value === undefined) return value;
 
   if (typeof value === "string") {
@@ -70,22 +74,25 @@ export function shrink(value: unknown, maxArrayItems: number = MAX_ARRAY_ITEMS):
 
   if (Array.isArray(value)) {
     if (value.length <= maxArrayItems) {
-      return value.map((entry) => shrink(entry, maxArrayItems));
+      return value.map((entry) => shrink(entry, maxArrayItems, preserveKeys));
     }
     const head = Math.max(1, Math.floor(maxArrayItems * HEAD_SHARE));
     const tail = Math.max(1, maxArrayItems - head);
     return [
-      ...value.slice(0, head).map((entry) => shrink(entry, maxArrayItems)),
+      ...value.slice(0, head).map((entry) => shrink(entry, maxArrayItems, preserveKeys)),
       omissionMarker(value.length - head - tail),
-      ...value.slice(-tail).map((entry) => shrink(entry, maxArrayItems)),
+      ...value.slice(-tail).map((entry) => shrink(entry, maxArrayItems, preserveKeys)),
     ];
   }
 
   const out: Record<string, unknown> = {};
   for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-    if (NOISE_KEYS.has(key)) continue;
+    if (!preserveKeys && NOISE_KEYS.has(key)) continue;
     if (entry === undefined) continue;
-    out[key] = shrink(entry, maxArrayItems);
+    // User-supplied `custom` dictionaries may legitimately contain keys like
+    // `config`, `thumbnails`, or `grants`; keep their keys while still bounding
+    // nested strings and arrays.
+    out[key] = shrink(entry, maxArrayItems, preserveKeys || key === "custom");
   }
   return out;
 }
