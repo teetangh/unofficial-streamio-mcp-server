@@ -99,6 +99,32 @@ export class LiveHarness {
     return { ok: !result.isError, text };
   }
 
+  /** Reads an MCP resource by URI and parses its JSON content. */
+  async readResource<T = any>(uri: string): Promise<T> {
+    const result = await this.client.readResource({ uri });
+    const text = result.contents
+      .map((entry) => ("text" in entry ? entry.text : ""))
+      .filter(Boolean)
+      .join("\n");
+    return JSON.parse(text) as T;
+  }
+
+  async listResources() {
+    return this.client.listResources();
+  }
+
+  async listResourceTemplates() {
+    return this.client.listResourceTemplates();
+  }
+
+  async listPrompts() {
+    return this.client.listPrompts();
+  }
+
+  async getPrompt(name: string, args: Record<string, string> = {}) {
+    return this.client.getPrompt({ name, arguments: args });
+  }
+
   /** Registers teardown work, run in reverse order regardless of failures. */
   onCleanup(cleanup: Cleanup): void {
     this.cleanups.push(cleanup);

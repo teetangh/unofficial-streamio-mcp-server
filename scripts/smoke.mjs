@@ -83,8 +83,7 @@ function assert(condition, message) {
 }
 
 const { ALL_TOOLS } = await import(new URL("../build/tools/registry.js", import.meta.url));
-const aliasCount = ALL_TOOLS.reduce((sum, tool) => sum + (tool.aliases?.length ?? 0), 0);
-const expected = ALL_TOOLS.length + aliasCount;
+const expected = ALL_TOOLS.length;
 
 const { tools } = await listTools();
 
@@ -110,10 +109,7 @@ assert(
 // Pick a real toolset from the registry so this works whatever is registered.
 const sampleToolset = ALL_TOOLS[ALL_TOOLS.length - 1].toolset;
 const inToolset = new Set(
-  ALL_TOOLS.filter((tool) => tool.toolset === sampleToolset).flatMap((tool) => [
-    tool.name,
-    ...(tool.aliases ?? []),
-  ])
+  ALL_TOOLS.filter((tool) => tool.toolset === sampleToolset).map((tool) => tool.name)
 );
 const { tools: gated } = await listTools({ STREAM_MCP_TOOLSETS: sampleToolset });
 assert(

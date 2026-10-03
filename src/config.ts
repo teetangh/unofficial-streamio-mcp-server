@@ -77,6 +77,16 @@ export function isReadOnly(): boolean {
 }
 
 /**
+ * `STREAM_MCP_DYNAMIC_TOOLSETS=true` starts with domain toolsets disabled and
+ * exposes `stream_list_toolsets` / `stream_enable_toolset` meta-tools so an MCP
+ * client can activate toolsets on demand without loading every tool schema up front.
+ */
+export function isDynamicToolsets(): boolean {
+  const raw = process.env.STREAM_MCP_DYNAMIC_TOOLSETS?.trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes";
+}
+
+/**
  * `STREAM_MCP_TOOLSETS` selects which groups to register. Defaults to all.
  * Accepts a comma-separated list, or `all`.
  */

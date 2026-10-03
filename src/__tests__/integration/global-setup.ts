@@ -110,6 +110,68 @@ async function sweep(): Promise<void> {
   console.log(`Live-test sweep: deleted ${ids.length} fixture user(s).`);
 }
 
+let restoreGuestCreationDisabled = false;
+let restoreMessagingPolls:
+  | {
+      automod: "disabled" | "simple" | "AI";
+      automod_behavior: "flag" | "block" | "shadow_block";
+      max_message_length: number;
+    }
+  | undefined;
+
+async function ensurePrerequisites(): Promise<void> {
+  const apiKey = process.env.STREAM_API_KEY;
+  const apiSecret = process.env.STREAM_API_SECRET;
+  if (!apiKey || !apiSecret) return;
+
+  const client = new StreamClient(apiKey, apiSecret, { timeout: 30_000 });
+  const { app } = await client.getApp();
+  if (app?.guest_user_creation_disabled) {
+    await client.updateApp({ guest_user_creation_disabled: false });
+    restoreGuestCreationDisabled = true;
+  }
+
+  const ct = await client.chat.getChannelType({ name: "messaging" });
+  if (!ct.polls) {
+    const automod = (ct.automod as "disabled" | "simple" | "AI") ?? "disabled";
+    const automod_behavior = (ct.automod_behavior as "flag" | "block" | "shadow_block") ?? "flag";
+    const max_message_length = ct.max_message_length ?? 5000;
+    await client.chat.updateChannelType({
+      name: "messaging",
+      automod,
+      automod_behavior,
+      max_message_length,
+      polls: true,
+    });
+    restoreMessagingPolls = { automod, automod_behavior, max_message_length };
+  }
+
+  if (restoreGuestCreationDisabled || restoreMessagingPolls) {
+    await sleep(2000);
+  }
+}
+
+async function restorePrerequisites(): Promise<void> {
+  const apiKey = process.env.STREAM_API_KEY;
+  const apiSecret = process.env.STREAM_API_SECRET;
+  if (!apiKey || !apiSecret) return;
+  if (!restoreGuestCreationDisabled && !restoreMessagingPolls) return;
+
+  const client = new StreamClient(apiKey, apiSecret, { timeout: 30_000 });
+  if (restoreGuestCreationDisabled) {
+    await client.updateApp({ guest_user_creation_disabled: true }).catch(() => {});
+  }
+  if (restoreMessagingPolls) {
+    await client.chat
+      .updateChannelType({
+        name: "messaging",
+        ...restoreMessagingPolls,
+        polls: false,
+      })
+      .catch(() => {});
+  }
+}
+
 export async function setup(): Promise<void> {
   coverageDir = mkdtempSync(join(tmpdir(), "stream-mcp-coverage-"));
   const file = join(coverageDir, "tools.log");
@@ -118,10 +180,15 @@ export async function setup(): Promise<void> {
 
   // Clear anything a previously interrupted run left behind.
   await sweep();
+  await ensurePrerequisites();
 }
 
 export async function teardown(): Promise<void> {
-  await sweep();
+  try {
+    await sweep();
+  } finally {
+    await restorePrerequisites();
+  }
   try {
     assertFullCoverage();
   } finally {

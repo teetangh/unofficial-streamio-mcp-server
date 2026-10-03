@@ -1,10 +1,15 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer, RegisteredTool } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult, ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import type { StreamClient } from "@stream-io/node-sdk";
 import { z } from "zod";
 import { getClient } from "../clients/index.js";
-import type { Toolset } from "../config.js";
-import { getEnabledToolsets, isReadOnly } from "../config.js";
+import {
+  ALL_TOOLSETS,
+  getEnabledToolsets,
+  isDynamicToolsets,
+  isReadOnly,
+  type Toolset,
+} from "../config.js";
 import { shrink, toolError, toolResult } from "../utils/format.js";
 
 /**
@@ -59,12 +64,6 @@ export interface ToolDef<S extends z.ZodRawShape = z.ZodRawShape, R = unknown> {
    * stats are derived from call activity.
    */
   notFoundHint?: string;
-  /**
-   * Deprecated names kept working for one more minor release. The removal
-   * version is stated in the notice `registerTool` prepends — move both
-   * together, and only in the release that actually removes them.
-   */
-  aliases?: string[];
 }
 
 /**
@@ -116,7 +115,7 @@ function isRegistrable(def: AnyToolDef, enabled: ReadonlySet<Toolset>): boolean 
 }
 
 /**
- * Registers one definition (plus any deprecated aliases) on an MCP server.
+ * Registers one definition on an MCP server.
  * All cross-cutting behaviour — client lookup, error mapping, compaction —
  * lives here so tool modules stay declarative.
  */
@@ -124,40 +123,31 @@ export function registerTool<S extends z.ZodRawShape, R>(
   server: McpServer,
   def: ToolDef<S, R>,
   enabled: ReadonlySet<Toolset>
-): boolean {
-  if (!isRegistrable(def, enabled)) return false;
+): RegisteredTool | undefined {
+  if (!isRegistrable(def, enabled)) return undefined;
 
   const inputSchema = {
     ...def.inputSchema,
     [VERBOSE_KEY]: verboseSchema,
   } as S & { verbose: typeof verboseSchema };
 
-  const makeHandler =
-    (deprecatedAs?: string) =>
-    async (args: ToolArgs<S>): Promise<CallToolResult> => {
-      try {
-        const { verbose = false } = args;
-        const client = getClient();
-        const raw = await def.handler(args, client);
-        const payload = applyCompaction(def, raw, verbose, args);
-        const result = toolResult(payload);
-        if (deprecatedAs) {
-          result.content.unshift({
-            type: "text",
-            text: `Note: "${deprecatedAs}" is deprecated and will be removed in 0.4.0. Use "${def.name}".`,
-          });
-        }
-        return result;
-      } catch (error) {
-        return toolError(error, def.notFoundHint);
-      }
-    };
+  const handler = async (args: ToolArgs<S>): Promise<CallToolResult> => {
+    try {
+      const { verbose = false } = args;
+      const client = getClient();
+      const raw = await def.handler(args, client);
+      const payload = applyCompaction(def, raw, verbose, args);
+      return toolResult(payload);
+    } catch (error) {
+      return toolError(error, def.notFoundHint);
+    }
+  };
 
   // The SDK types the callback against the concrete shape it infers from
   // `inputSchema`; ToolDef is generic over that shape, so the two cannot be
   // related without re-deriving the SDK's inference. Runtime behaviour is
   // covered by the round-trip tests in __tests__/server.test.ts.
-  server.registerTool(
+  return server.registerTool(
     def.name,
     {
       title: def.title,
@@ -165,30 +155,102 @@ export function registerTool<S extends z.ZodRawShape, R>(
       inputSchema,
       annotations: { title: def.title, ...def.annotations },
     },
-    makeHandler() as never
+    handler as never
   );
-
-  for (const alias of def.aliases ?? []) {
-    server.registerTool(
-      alias,
-      {
-        title: `${def.title} (deprecated)`,
-        description: `Deprecated alias for "${def.name}". ${def.description}`,
-        inputSchema,
-        annotations: { title: def.title, ...def.annotations },
-      },
-      makeHandler(alias) as never
-    );
-  }
-
-  return true;
 }
 
 export function registerTools(server: McpServer, defs: readonly AnyToolDef[]): number {
   const enabled = getEnabledToolsets();
+  const dynamic = isDynamicToolsets();
+  const byToolset = new Map<Toolset, { name: string; handle: RegisteredTool }[]>();
   let count = 0;
+
   for (const def of defs) {
-    if (registerTool(server, def, enabled)) count += 1;
+    const handle = registerTool(server, def, enabled);
+    if (handle) {
+      count += 1;
+      if (dynamic) {
+        handle.enabled = false;
+      }
+      const list = byToolset.get(def.toolset) ?? [];
+      list.push({ name: def.name, handle });
+      byToolset.set(def.toolset, list);
+    }
   }
+
+  if (dynamic) {
+    server.registerTool(
+      "stream_list_toolsets",
+      {
+        title: "List Stream toolsets",
+        description:
+          "List available Stream MCP toolsets, the number of tools in each, and whether each toolset is currently enabled.",
+        inputSchema: {},
+        annotations: {
+          title: "List Stream toolsets",
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+      },
+      async () => {
+        const toolsets = [...byToolset.entries()].map(([toolset, entries]) => ({
+          toolset,
+          tool_count: entries.length,
+          enabled: entries.every((entry) => entry.handle.enabled),
+          tools: entries.map((entry) => entry.name),
+        }));
+        return toolResult({ toolsets });
+      }
+    );
+
+    server.registerTool(
+      "stream_enable_toolset",
+      {
+        title: "Enable Stream toolsets",
+        description:
+          "Enable one or more Stream MCP toolsets on demand so their tools appear in tools/list.",
+        inputSchema: {
+          toolsets: z
+            .array(z.enum(ALL_TOOLSETS))
+            .min(1)
+            .describe("Toolset names to enable, e.g. ['chat', 'moderation']"),
+        },
+        annotations: {
+          title: "Enable Stream toolsets",
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+      },
+      async (args: { toolsets: Toolset[] }) => {
+        const enabledTools: string[] = [];
+        const unavailable: Toolset[] = [];
+        for (const toolset of args.toolsets) {
+          const entries = byToolset.get(toolset);
+          if (!entries) {
+            unavailable.push(toolset);
+            continue;
+          }
+          for (const entry of entries) {
+            entry.handle.enabled = true;
+            enabledTools.push(entry.name);
+          }
+        }
+        if (server.isConnected() && enabledTools.length > 0) {
+          server.sendToolListChanged();
+        }
+        return toolResult({
+          enabled_toolsets: args.toolsets.filter((t) => !unavailable.includes(t)),
+          ...(unavailable.length > 0 ? { unavailable_toolsets: unavailable } : {}),
+          enabled_tool_count: enabledTools.length,
+          enabled_tools: enabledTools,
+        });
+      }
+    );
+  }
+
   return count;
 }
