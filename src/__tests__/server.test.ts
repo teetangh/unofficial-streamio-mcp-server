@@ -39,13 +39,12 @@ afterEach(() => {
 });
 
 describe("MCP server", () => {
-  it("lists every tool plus its aliases", async () => {
+  it("lists every registered tool", async () => {
     const { client, toolCount } = await connect();
     const { tools } = await client.listTools();
 
-    const aliasCount = ALL_TOOLS.reduce((sum, tool) => sum + (tool.aliases?.length ?? 0), 0);
     expect(toolCount).toBe(ALL_TOOLS.length);
-    expect(tools.length).toBe(ALL_TOOLS.length + aliasCount);
+    expect(tools.length).toBe(ALL_TOOLS.length);
     await client.close();
   });
 

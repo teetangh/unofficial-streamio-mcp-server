@@ -118,7 +118,7 @@ const updatePollPartial = defineTool({
   },
   inputSchema: {
     poll_id: z.string().min(1).describe("Poll ID to update"),
-    user_id: z.string().optional().describe("User ID performing the update"),
+    user_id: z.string().min(1).describe("User ID performing the update"),
     set: z
       .record(z.string(), z.unknown())
       .optional()
@@ -153,7 +153,7 @@ const deletePoll = defineTool({
   },
   inputSchema: {
     poll_id: z.string().min(1).describe("Poll ID to delete"),
-    user_id: z.string().optional().describe("User ID performing the deletion"),
+    user_id: z.string().min(1).describe("User ID performing the deletion"),
   },
   handler: async (args, client) =>
     client.deletePoll(
@@ -177,12 +177,12 @@ const queryPolls = defineTool({
   },
   compact: bounded,
   inputSchema: {
+    user_id: z.string().min(1).describe("User ID executing the query"),
     filter: filterConditions,
     sort: sortParams,
     limit: limit(100, 25),
     next: nextCursor,
     prev: prevCursor,
-    user_id: z.string().optional().describe("User ID executing the query"),
   },
   handler: async (args, client) =>
     client.queryPolls(
@@ -211,7 +211,7 @@ const createPollOption = defineTool({
   inputSchema: {
     poll_id: z.string().min(1).describe("Poll ID to add the option to"),
     text: z.string().min(1).describe("Option text displayed to voters"),
-    user_id: z.string().optional().describe("User ID creating the option"),
+    user_id: z.string().min(1).describe("User ID creating the option"),
     custom: customData,
   },
   handler: async (args, client) =>
@@ -239,7 +239,7 @@ const deletePollOption = defineTool({
   inputSchema: {
     poll_id: z.string().min(1).describe("Poll ID that owns the option"),
     option_id: z.string().min(1).describe("Option ID to delete"),
-    user_id: z.string().optional().describe("User ID performing the deletion"),
+    user_id: z.string().min(1).describe("User ID performing the deletion"),
   },
   handler: async (args, client) =>
     client.deletePollOption(
@@ -301,7 +301,7 @@ const deletePollVote = defineTool({
     message_id: z.string().min(1).describe("Message ID that the poll is attached to"),
     poll_id: z.string().min(1).describe("Poll ID the vote belongs to"),
     vote_id: z.string().min(1).describe("Vote ID to remove"),
-    user_id: z.string().optional().describe("User ID who owns the vote"),
+    user_id: z.string().min(1).describe("User ID who owns the vote"),
   },
   handler: async (args, client) =>
     client.chat.deletePollVote(
@@ -328,12 +328,12 @@ const queryPollVotes = defineTool({
   compact: bounded,
   inputSchema: {
     poll_id: z.string().min(1).describe("Poll ID whose votes to query"),
+    user_id: z.string().min(1).describe("User ID executing the query"),
     filter: filterConditions,
     sort: sortParams,
     limit: limit(100, 25),
     next: nextCursor,
     prev: prevCursor,
-    user_id: z.string().optional().describe("User ID executing the query"),
   },
   handler: async (args, client) =>
     client.queryPollVotes(
@@ -354,7 +354,7 @@ const createReminder = defineTool({
   title: "Create message reminder",
   toolset: "chat",
   description:
-    "Create a reminder for a user on a specific chat message, optionally scheduled for a future timestamp.",
+    "Create a reminder for a user on a specific chat message, optionally scheduled for a future timestamp. Requires Push v3 and reminders enabled on the channel type.",
   annotations: {
     readOnlyHint: false,
     destructiveHint: false,
@@ -381,7 +381,7 @@ const updateReminder = defineTool({
   title: "Update message reminder",
   toolset: "chat",
   description:
-    "Update the scheduled trigger timestamp of an existing user reminder on a chat message.",
+    "Update the scheduled trigger timestamp of an existing user reminder on a chat message. Requires Push v3 and reminders enabled on the channel type.",
   annotations: {
     readOnlyHint: false,
     destructiveHint: false,
@@ -407,7 +407,8 @@ const deleteReminder = defineTool({
   name: "chat_delete_reminder",
   title: "Delete message reminder",
   toolset: "chat",
-  description: "Delete a user's reminder on a specific chat message so it will no longer fire.",
+  description:
+    "Delete a user's reminder on a specific chat message so it will no longer fire. Requires Push v3 and reminders enabled on the channel type.",
   annotations: {
     readOnlyHint: false,
     destructiveHint: true,
@@ -430,7 +431,7 @@ const queryReminders = defineTool({
   title: "Query message reminders",
   toolset: "chat",
   description:
-    "Search and filter message reminders across the application with sorting and cursor pagination.",
+    "Search and filter message reminders across the application with sorting and cursor pagination. Requires Push v3.",
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -439,7 +440,7 @@ const queryReminders = defineTool({
   },
   compact: bounded,
   inputSchema: {
-    user_id: z.string().optional().describe("User ID whose reminders to query"),
+    user_id: z.string().min(1).describe("User ID whose reminders to query"),
     filter: filterConditions,
     sort: sortParams,
     limit: limit(100, 25),

@@ -498,3 +498,54 @@ describe("app_get_settings", () => {
     expect(handlerOut.app.push_notifications.providers[0].apn_key_id).toBe("K1");
   });
 });
+
+describe("push provider secret stripping", () => {
+  const providerWithSecrets = {
+    name: "apn-prod",
+    type: "apn",
+    description: "Production APNs",
+    apn_key_id: "KEY123",
+    apn_team_id: "TEAM123",
+    apn_topic: "com.example.app",
+    apn_development: false,
+    apn_auth_key: "-----BEGIN PRIVATE KEY-----\nSECRET\n-----END PRIVATE KEY-----",
+    apn_p12_cert: "BASE64CERT",
+    firebase_credentials: '{"private_key":"secret"}',
+    firebase_server_key: "fcm-server-key",
+    huawei_app_secret: "huawei-secret",
+    xiaomi_app_secret: "xiaomi-secret",
+  };
+
+  it("strips secret signing keys from app_list_push_providers", () => {
+    const out = view("app_list_push_providers", {
+      duration: "2ms",
+      push_providers: [providerWithSecrets],
+    });
+
+    expect(out.push_providers).toHaveLength(1);
+    expect(out.push_providers[0]).toMatchObject({
+      name: "apn-prod",
+      type: "apn",
+      apn_key_id: "KEY123",
+      apn_team_id: "TEAM123",
+      apn_topic: "com.example.app",
+    });
+    expect(out.push_providers[0].apn_auth_key).toBeUndefined();
+    expect(out.push_providers[0].apn_p12_cert).toBeUndefined();
+    expect(out.push_providers[0].firebase_credentials).toBeUndefined();
+    expect(out.push_providers[0].firebase_server_key).toBeUndefined();
+    expect(out.push_providers[0].huawei_app_secret).toBeUndefined();
+    expect(out.push_providers[0].xiaomi_app_secret).toBeUndefined();
+  });
+
+  it("strips secret signing keys from app_upsert_push_provider", () => {
+    const out = view("app_upsert_push_provider", {
+      duration: "2ms",
+      push_provider: providerWithSecrets,
+    });
+
+    expect(out.push_provider.name).toBe("apn-prod");
+    expect(out.push_provider.apn_auth_key).toBeUndefined();
+    expect(out.push_provider.firebase_credentials).toBeUndefined();
+  });
+});

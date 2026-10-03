@@ -448,7 +448,7 @@ Partially update a poll's fields using set and unset operations without replacin
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `poll_id` | string | **yes** | Poll ID to update |
-| `user_id` | string | no | User ID performing the update |
+| `user_id` | string | **yes** | User ID performing the update |
 | `set` | object | no | Fields to set on the poll, e.g. {is_closed: true} |
 | `unset` | string[] | no | Field names to remove from the poll |
 
@@ -459,7 +459,7 @@ Delete a poll by ID, removing the poll and its associated options and votes.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `poll_id` | string | **yes** | Poll ID to delete |
-| `user_id` | string | no | User ID performing the deletion |
+| `user_id` | string | **yes** | User ID performing the deletion |
 
 ### `chat_query_polls` — read-only, idempotent
 
@@ -467,12 +467,12 @@ Search and filter polls across the application with sorting and cursor paginatio
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
+| `user_id` | string | **yes** | User ID executing the query |
 | `filter` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
 | `sort` | object[] | no | Sort parameters, applied in order |
 | `limit` | integer | no | Max results to return (default: 25, max: 100) |
 | `next` | string | no | Cursor from a previous response's `next` field |
 | `prev` | string | no | Cursor from a previous response's `prev` field |
-| `user_id` | string | no | User ID executing the query |
 
 ### `chat_create_poll_option`
 
@@ -482,7 +482,7 @@ Add a new voting option to an existing poll, with optional custom metadata.
 | --- | --- | --- | --- |
 | `poll_id` | string | **yes** | Poll ID to add the option to |
 | `text` | string | **yes** | Option text displayed to voters |
-| `user_id` | string | no | User ID creating the option |
+| `user_id` | string | **yes** | User ID creating the option |
 | `custom` | object | no | Custom key/value data stored on the object |
 
 ### `chat_delete_poll_option` — **destructive**, idempotent
@@ -493,7 +493,7 @@ Remove a voting option from a poll by the poll ID and option ID.
 | --- | --- | --- | --- |
 | `poll_id` | string | **yes** | Poll ID that owns the option |
 | `option_id` | string | **yes** | Option ID to delete |
-| `user_id` | string | no | User ID performing the deletion |
+| `user_id` | string | **yes** | User ID performing the deletion |
 
 ### `chat_cast_poll_vote`
 
@@ -516,7 +516,7 @@ Remove a previously cast vote from a poll on a chat message by vote ID.
 | `message_id` | string | **yes** | Message ID that the poll is attached to |
 | `poll_id` | string | **yes** | Poll ID the vote belongs to |
 | `vote_id` | string | **yes** | Vote ID to remove |
-| `user_id` | string | no | User ID who owns the vote |
+| `user_id` | string | **yes** | User ID who owns the vote |
 
 ### `chat_query_poll_votes` — read-only, idempotent
 
@@ -525,16 +525,16 @@ Search and filter votes cast on a poll with sorting and cursor pagination.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `poll_id` | string | **yes** | Poll ID whose votes to query |
+| `user_id` | string | **yes** | User ID executing the query |
 | `filter` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
 | `sort` | object[] | no | Sort parameters, applied in order |
 | `limit` | integer | no | Max results to return (default: 25, max: 100) |
 | `next` | string | no | Cursor from a previous response's `next` field |
 | `prev` | string | no | Cursor from a previous response's `prev` field |
-| `user_id` | string | no | User ID executing the query |
 
 ### `chat_create_reminder`
 
-Create a reminder for a user on a specific chat message, optionally scheduled for a future timestamp.
+Create a reminder for a user on a specific chat message, optionally scheduled for a future timestamp. Requires Push v3 and reminders enabled on the channel type.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -544,7 +544,7 @@ Create a reminder for a user on a specific chat message, optionally scheduled fo
 
 ### `chat_update_reminder` — idempotent
 
-Update the scheduled trigger timestamp of an existing user reminder on a chat message.
+Update the scheduled trigger timestamp of an existing user reminder on a chat message. Requires Push v3 and reminders enabled on the channel type.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -554,7 +554,7 @@ Update the scheduled trigger timestamp of an existing user reminder on a chat me
 
 ### `chat_delete_reminder` — **destructive**, idempotent
 
-Delete a user's reminder on a specific chat message so it will no longer fire.
+Delete a user's reminder on a specific chat message so it will no longer fire. Requires Push v3 and reminders enabled on the channel type.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -563,11 +563,11 @@ Delete a user's reminder on a specific chat message so it will no longer fire.
 
 ### `chat_query_reminders` — read-only, idempotent
 
-Search and filter message reminders across the application with sorting and cursor pagination.
+Search and filter message reminders across the application with sorting and cursor pagination. Requires Push v3.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `user_id` | string | no | User ID whose reminders to query |
+| `user_id` | string | **yes** | User ID whose reminders to query |
 | `filter` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
 | `sort` | object[] | no | Sort parameters, applied in order |
 | `limit` | integer | no | Max results to return (default: 25, max: 100) |
@@ -718,9 +718,9 @@ Register a new custom slash command that can be enabled on channel types.
 | `args` | string | no | Arguments usage hint shown in autocomplete, e.g. '[text]' |
 | `set` | string | no | Command group or set name used for organizing commands |
 
-### `chat_update_command` — idempotent
+### `chat_update_command` — **destructive**, idempotent
 
-Update an existing custom slash command's description, argument usage hint, or command set.
+Replace an existing custom slash command's configuration (full update: omitting args or set resets them to empty strings).
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -739,7 +739,7 @@ Delete a custom slash command by name. Built-in commands cannot be deleted.
 
 ### `chat_get_push_templates` — read-only, idempotent
 
-Retrieve push notification payload templates configured for a push provider type.
+Retrieve push notification payload templates configured for a push provider type. Requires Push v3 configured on the application.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -748,7 +748,7 @@ Retrieve push notification payload templates configured for a push provider type
 
 ### `chat_upsert_push_template` — idempotent
 
-Create or update a push notification payload template for a specific event and push provider.
+Create or update a push notification payload template for a specific event and push provider. Requires Push v3 configured on the application.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -917,12 +917,12 @@ List all push notification devices registered for a user, including device token
 
 ### `users_create_device` — idempotent
 
-Register a push notification device token for a user with APN, Firebase, Huawei, Xiaomi, or webhook provider.
+Register a push notification device token for a user with an APN, Firebase, Huawei, or Xiaomi push provider.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | string | **yes** | Device push token or unique device identifier |
-| `push_provider` | `apn` \| `firebase` \| `huawei` \| `xiaomi` \| `webhook` | **yes** | Push notification provider type |
+| `push_provider` | `apn` \| `firebase` \| `huawei` \| `xiaomi` | **yes** | Push notification provider type |
 | `user_id` | string | **yes** | User ID to register the device for |
 | `push_provider_name` | string | no | Named push provider configuration on the app |
 | `voip_token` | boolean | no | Whether the token is for Apple VoIP push notifications |
@@ -998,7 +998,7 @@ Add one or more users to a user group, optionally granting them group admin priv
 | `as_admin` | boolean | no | Whether to add the members as group admins |
 | `team_id` | string | no | Team ID when the group is scoped to a team |
 
-### `users_remove_group_members` — idempotent
+### `users_remove_group_members` — **destructive**, idempotent
 
 Remove one or more users from a user group by their user IDs.
 
@@ -1010,7 +1010,7 @@ Remove one or more users from a user group by their user IDs.
 
 ### `users_deactivate_batch` — **destructive**, idempotent
 
-Deactivate multiple users asynchronously in a single batch operation, optionally marking their messages or channels deleted.
+Deactivate multiple users asynchronously in a single batch operation, optionally marking their messages or channels deleted. Returns a task_id to poll with app_get_task.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -1021,7 +1021,7 @@ Deactivate multiple users asynchronously in a single batch operation, optionally
 
 ### `users_reactivate_batch` — idempotent
 
-Reactivate multiple previously deactivated users in a single batch operation, optionally restoring their messages or channels.
+Reactivate multiple previously deactivated users asynchronously in a single batch operation, optionally restoring their messages or channels. Returns a task_id to poll with app_get_task.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -1237,20 +1237,28 @@ Get a single moderation policy configuration by its key and optional team.
 
 ### `moderation_upsert_config` — idempotent
 
-Create or update a moderation policy configuration for text, image, video, blocklists, LLM or toxicity.
+Create or update a moderation policy configuration for text, image, video, audio, blocklists, LLM, circumvention, semantic filters, flood or toxicity.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `key` | string | **yes** | Moderation config key to create or update |
 | `team` | string | no | Team the moderation config belongs to |
 | `async` | boolean | no | Run moderation checks asynchronously instead of inline |
+| `user_id` | string | no | User ID associated with the audit log entry |
 | `ai_text_config` | object | no | AI text moderation configuration |
 | `ai_image_config` | object | no | AI image moderation configuration |
 | `ai_video_config` | object | no | AI video moderation configuration |
+| `ai_audio_config` | object | no | AI audio moderation configuration |
+| `aws_rekognition_config` | object | no | AWS Rekognition image moderation configuration |
+| `bodyguard_config` | object | no | Bodyguard AI text moderation configuration |
 | `block_list_config` | object | no | Word blocklist moderation configuration |
 | `llm_config` | object | no | LLM-based moderation configuration |
 | `automod_toxicity_config` | object | no | Automated toxicity filter configuration |
+| `automod_platform_circumvention_config` | object | no | Automated platform circumvention filter configuration |
+| `automod_semantic_filters_config` | object | no | Automated semantic filters configuration |
 | `flood_config` | object | no | Flood and rate-limiting moderation configuration |
+| `google_vision_config` | object | no | Google Vision image moderation configuration |
+| `velocity_filter_config` | object | no | Velocity spam filter configuration |
 
 ### `moderation_delete_config` — **destructive**, idempotent
 
@@ -1288,14 +1296,17 @@ Create or update a moderation rule with conditions, target config keys and autom
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `name` | string | **yes** | Unique moderation rule name |
-| `rule_type` | string | **yes** | Rule type, e.g. 'user', 'content' or 'call' |
+| `rule_type` | string | **yes** | Rule type, e.g. 'user', 'content', 'call', or 'flood' |
 | `description` | string | no | Human-readable description of the rule |
 | `enabled` | boolean | no | Whether the moderation rule is active |
+| `cooldown_period` | string | no | Cooldown duration before rule can trigger again, e.g. '24h' or '7d' |
 | `config_keys` | string[] | no | Moderation config keys this rule applies to |
 | `conditions` | object[] | no | Rule condition objects evaluated against content or user state |
+| `groups` | object[] | no | Nested condition groups |
 | `action` | object | no | Action executed when the rule conditions match |
 | `logic` | string | no | Boolean logic combining conditions, e.g. 'AND' or 'OR' |
 | `team` | string | no | Team the moderation rule belongs to |
+| `user_id` | string | no | User ID associated with the audit log entry |
 
 ### `moderation_delete_rule` — **destructive**, idempotent
 
@@ -1323,7 +1334,7 @@ Submit an appeal against a moderation decision on a message, user or other entit
 | `entity_type` | string | **yes** | Entity type, e.g. 'stream:chat:v1:message' or 'stream:user' |
 | `user_id` | string | **yes** | User ID submitting the appeal |
 | `appeal_reason` | string | **yes** | Explanation for why the moderation action should be overturned |
-| `channel_cid` | string | no | Channel CID associated with the entity, e.g. 'messaging:general' |
+| `channel_cid` | string | no | Channel CID associated with the appeal (only used for channel-ban appeals), e.g. 'messaging:general' |
 | `review_queue_item_id` | string | no | Review queue item ID associated with the moderation action |
 
 ### `moderation_get_appeal` — read-only, idempotent

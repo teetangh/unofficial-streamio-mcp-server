@@ -1,11 +1,48 @@
+import type { StreamClient } from "@stream-io/node-sdk";
 import { z } from "zod";
 import { defined } from "../../schemas/common.js";
 import { bounded } from "../../utils/format.js";
 import { defineTool, type AnyToolDef } from "../define.js";
 
+type ListPushProvidersResult = Awaited<ReturnType<StreamClient["listPushProviders"]>>;
+type UpsertPushProviderResult = Awaited<ReturnType<StreamClient["upsertPushProvider"]>>;
+
 const pushProviderTypeEnum = z
-  .enum(["apn", "firebase", "huawei", "xiaomi", "webhook"])
+  .enum(["apn", "firebase", "huawei", "xiaomi"])
   .describe("Push notification provider type");
+
+const PUSH_PROVIDER_SECRET_KEYS = new Set([
+  "apn_auth_key",
+  "apn_p12_cert",
+  "firebase_credentials",
+  "firebase_server_key",
+  "huawei_app_secret",
+  "xiaomi_app_secret",
+]);
+
+function stripPushProviderSecrets<T extends object>(provider: T): T {
+  return Object.fromEntries(
+    Object.entries(provider).filter(([key]) => !PUSH_PROVIDER_SECRET_KEYS.has(key))
+  ) as T;
+}
+
+function redactPushProvidersResponse(response: ListPushProvidersResult): ListPushProvidersResult {
+  return {
+    ...response,
+    push_providers: (response.push_providers ?? []).map((provider) =>
+      stripPushProviderSecrets(provider)
+    ),
+  };
+}
+
+function redactPushProviderResponse(response: UpsertPushProviderResult): UpsertPushProviderResult {
+  return {
+    ...response,
+    ...(response.push_provider
+      ? { push_provider: stripPushProviderSecrets(response.push_provider) }
+      : {}),
+  };
+}
 
 const externalStorageFields = {
   name: z.string().min(1).describe("Unique name for the external storage configuration"),
@@ -23,10 +60,11 @@ const externalStorageFields = {
       s3_region: z.string().describe("AWS region"),
       s3_api_key: z.string().optional().describe("AWS access key ID"),
       s3_secret: z.string().optional().describe("AWS secret access key"),
-      s3_role_arn: z.string().optional().describe("IAM role ARN"),
     })
     .optional()
-    .describe("Amazon S3 region and authentication configuration"),
+    .describe(
+      "Amazon S3 region and optional credentials (omit s3_api_key and s3_secret to use IAM role authentication)"
+    ),
   azure_blob: z
     .object({
       abs_account_name: z.string().describe("Azure storage account"),
@@ -131,16 +169,20 @@ const listPushProviders = defineTool({
   title: "List push providers",
   toolset: "app",
   description:
-    "List all configured push notification providers (APN, Firebase, Huawei, Xiaomi, webhook) on the app.",
+    "List all configured push notification providers (APN, Firebase, Huawei, or Xiaomi) on the app.",
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
     idempotentHint: true,
     openWorldHint: true,
   },
-  compact: false,
+  compact: (raw: ListPushProvidersResult) => ({
+    push_providers: (raw.push_providers ?? []).map((provider) =>
+      stripPushProviderSecrets(provider)
+    ),
+  }),
   inputSchema: {},
-  handler: async (_args, client) => client.listPushProviders(),
+  handler: async (_args, client) => redactPushProvidersResponse(await client.listPushProviders()),
 });
 
 const upsertPushProvider = defineTool({
@@ -148,14 +190,16 @@ const upsertPushProvider = defineTool({
   title: "Create or update push provider",
   toolset: "app",
   description:
-    "Create or update a named push notification provider configuration (APN, Firebase, Huawei, Xiaomi, or webhook).",
+    "Create or replace a named push notification provider configuration (APN, Firebase, Huawei, or Xiaomi).",
   annotations: {
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
     idempotentHint: true,
     openWorldHint: true,
   },
-  compact: false,
+  compact: (raw: UpsertPushProviderResult) => ({
+    push_provider: raw.push_provider ? stripPushProviderSecrets(raw.push_provider) : undefined,
+  }),
   inputSchema: {
     type: pushProviderTypeEnum,
     name: z.string().min(1).describe("Unique name for this push provider configuration"),
@@ -177,23 +221,33 @@ const upsertPushProvider = defineTool({
       .boolean()
       .optional()
       .describe("Whether to use the APNs development/sandbox environment"),
+    huawei_app_id: z.string().optional().describe("Huawei Push Kit application ID"),
+    huawei_app_secret: z.string().optional().describe("Huawei Push Kit application secret"),
+    xiaomi_package_name: z.string().optional().describe("Xiaomi application package name"),
+    xiaomi_app_secret: z.string().optional().describe("Xiaomi Push application secret"),
   },
   handler: async (args, client) =>
-    client.upsertPushProvider({
-      push_provider: defined({
-        type: args.type,
-        name: args.name,
-        description: args.description,
-        disabled_at: args.disabled_at ? new Date(args.disabled_at) : undefined,
-        disabled_reason: args.disabled_reason,
-        firebase_credentials: args.firebase_credentials,
-        apn_auth_key: args.apn_auth_key,
-        apn_key_id: args.apn_key_id,
-        apn_team_id: args.apn_team_id,
-        apn_topic: args.apn_topic,
-        apn_development: args.apn_development,
-      }),
-    }),
+    redactPushProviderResponse(
+      await client.upsertPushProvider({
+        push_provider: defined({
+          type: args.type,
+          name: args.name,
+          description: args.description,
+          disabled_at: args.disabled_at ? new Date(args.disabled_at) : undefined,
+          disabled_reason: args.disabled_reason,
+          firebase_credentials: args.firebase_credentials,
+          apn_auth_key: args.apn_auth_key,
+          apn_key_id: args.apn_key_id,
+          apn_team_id: args.apn_team_id,
+          apn_topic: args.apn_topic,
+          apn_development: args.apn_development,
+          huawei_app_id: args.huawei_app_id,
+          huawei_app_secret: args.huawei_app_secret,
+          xiaomi_package_name: args.xiaomi_package_name,
+          xiaomi_app_secret: args.xiaomi_app_secret,
+        }),
+      })
+    ),
 });
 
 const deletePushProvider = defineTool({
@@ -220,7 +274,7 @@ const checkPush = defineTool({
   title: "Check push notifications",
   toolset: "app",
   description:
-    "Test push notification delivery and template rendering for a user or message across configured push providers.",
+    "Test push notification delivery and template rendering for a user or message across configured push providers. Delivers real push notifications to the user's devices unless skip_devices is true.",
   annotations: {
     readOnlyHint: false,
     destructiveHint: false,
@@ -325,10 +379,10 @@ const updateExternalStorage = defineTool({
   title: "Update external storage",
   toolset: "app",
   description:
-    "Update an existing external cloud storage configuration (AWS S3, GCS, or Azure Blob) by name.",
+    "Replace an existing external cloud storage configuration (AWS S3, GCS, or Azure Blob) by name.",
   annotations: {
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
     idempotentHint: true,
     openWorldHint: true,
   },

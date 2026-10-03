@@ -1,4 +1,3 @@
-import type { CreateDeviceRequest } from "@stream-io/node-sdk";
 import { z } from "zod";
 import { defined, limit } from "../../schemas/common.js";
 import { ToolInputError } from "../../utils/errors.js";
@@ -6,7 +5,7 @@ import { bounded } from "../../utils/format.js";
 import { defineTool, type AnyToolDef } from "../define.js";
 
 const pushProviderEnum = z
-  .enum(["apn", "firebase", "huawei", "xiaomi", "webhook"])
+  .enum(["apn", "firebase", "huawei", "xiaomi"])
   .describe("Push notification provider type");
 
 const listDevices = defineTool({
@@ -33,7 +32,7 @@ const createDevice = defineTool({
   title: "Register user device",
   toolset: "users",
   description:
-    "Register a push notification device token for a user with APN, Firebase, Huawei, Xiaomi, or webhook provider.",
+    "Register a push notification device token for a user with an APN, Firebase, Huawei, or Xiaomi push provider.",
   annotations: {
     readOnlyHint: false,
     destructiveHint: false,
@@ -57,7 +56,7 @@ const createDevice = defineTool({
     client.createDevice(
       defined({
         id: args.id,
-        push_provider: args.push_provider as CreateDeviceRequest["push_provider"],
+        push_provider: args.push_provider,
         user_id: args.user_id,
         push_provider_name: args.push_provider_name,
         voip_token: args.voip_token,
@@ -263,7 +262,7 @@ const removeUserGroupMembers = defineTool({
   description: "Remove one or more users from a user group by their user IDs.",
   annotations: {
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
     idempotentHint: true,
     openWorldHint: true,
   },
@@ -287,7 +286,7 @@ const deactivateUsersBatch = defineTool({
   title: "Deactivate users in batch",
   toolset: "users",
   description:
-    "Deactivate multiple users asynchronously in a single batch operation, optionally marking their messages or channels deleted.",
+    "Deactivate multiple users asynchronously in a single batch operation, optionally marking their messages or channels deleted. Returns a task_id to poll with app_get_task.",
   annotations: {
     readOnlyHint: false,
     destructiveHint: true,
@@ -326,7 +325,7 @@ const reactivateUsersBatch = defineTool({
   title: "Reactivate users in batch",
   toolset: "users",
   description:
-    "Reactivate multiple previously deactivated users in a single batch operation, optionally restoring their messages or channels.",
+    "Reactivate multiple previously deactivated users asynchronously in a single batch operation, optionally restoring their messages or channels. Returns a task_id to poll with app_get_task.",
   annotations: {
     readOnlyHint: false,
     destructiveHint: false,

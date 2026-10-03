@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   callRef,
+  customData,
   defined,
   filterConditions,
   limit,
@@ -8,10 +9,22 @@ import {
   prevCursor,
   sortParams,
 } from "../../schemas/common.js";
+import { ToolInputError } from "../../utils/errors.js";
 import { bounded } from "../../utils/format.js";
 import { defineTool, type AnyToolDef } from "../define.js";
 
 const isoDateTime = z.iso.datetime({ offset: true });
+const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected date in YYYY-MM-DD format");
+
+const AGGREGATE_REPORT_TYPES = [
+  "call_quality",
+  "user_feedback",
+  "sdk_usage",
+  "network_metrics",
+  "call_duration",
+  "call_participant_count",
+  "calls_per_day",
+] as const;
 
 const getActiveCallsStatus = defineTool({
   name: "video_get_active_calls_status",
@@ -34,7 +47,7 @@ const queryAggregateCallStats = defineTool({
   title: "Query aggregate call stats",
   toolset: "video",
   description:
-    "Query application-wide aggregated call statistics and quality reports over a date range.",
+    "Query application-wide aggregated call statistics and quality reports over a YYYY-MM-DD date range.",
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -42,22 +55,22 @@ const queryAggregateCallStats = defineTool({
     openWorldHint: true,
   },
   inputSchema: {
-    from: z
-      .string()
-      .optional()
-      .describe("Start of the reporting window (date or ISO-8601 timestamp)"),
-    to: z.string().optional().describe("End of the reporting window (date or ISO-8601 timestamp)"),
+    from: dateOnly.optional().describe("Start date of the reporting window in YYYY-MM-DD format"),
+    to: dateOnly.optional().describe("End date of the reporting window in YYYY-MM-DD format"),
     report_types: z
-      .array(z.string().min(1))
+      .array(z.enum(AGGREGATE_REPORT_TYPES))
+      .min(1)
       .optional()
-      .describe("Specific aggregate report types to include"),
+      .describe(
+        "Specific aggregate report types to include (defaults to all available report types when omitted)"
+      ),
   },
   handler: async (args, client) =>
     client.video.queryAggregateCallStats(
       defined({
         from: args.from,
         to: args.to,
-        report_types: args.report_types,
+        report_types: args.report_types ?? [...AGGREGATE_REPORT_TYPES],
       })
     ),
 });
@@ -252,7 +265,7 @@ const stopFrameRecording = defineTool({
     ...callRef,
   },
   handler: async (args, client) =>
-    client.video.call(args.call_type, args.call_id).stopFrameRecording(...([{}] as unknown as [])),
+    client.video.call(args.call_type, args.call_id).stopFrameRecording(),
 });
 
 const sendClosedCaption = defineTool({
@@ -345,19 +358,19 @@ const updateSipTrunk = defineTool({
   title: "Update SIP trunk",
   toolset: "video-admin",
   description:
-    "Update an existing inbound SIP trunk's name, phone numbers, allowed IPs or password.",
+    "Replace an existing inbound SIP trunk's name, phone numbers, allowed IPs or password.",
   annotations: {
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
     idempotentHint: true,
     openWorldHint: true,
   },
   inputSchema: {
     id: z.string().min(1).describe("SIP trunk ID to update"),
-    name: z.string().optional().describe("Updated name of the SIP trunk"),
+    name: z.string().min(1).describe("Updated name of the SIP trunk"),
     numbers: z
       .array(z.string().min(1))
-      .optional()
+      .min(1)
       .describe("Updated phone numbers associated with this SIP trunk"),
     allowed_ips: z
       .array(z.string().min(1))
@@ -373,7 +386,7 @@ const updateSipTrunk = defineTool({
         numbers: args.numbers,
         allowed_ips: args.allowed_ips,
         password: args.password,
-      }) as never
+      })
     ),
 });
 
@@ -415,7 +428,7 @@ const createSipRoutingRule = defineTool({
   title: "Create SIP routing rule",
   toolset: "video-admin",
   description:
-    "Create an inbound SIP routing rule that routes calls from SIP trunks to Stream video calls.",
+    "Create an inbound SIP routing rule that routes calls from SIP trunks to Stream video calls via direct or PIN routing. Requires at least one of direct_routing_configs or pin_routing_configs.",
   annotations: {
     readOnlyHint: false,
     destructiveHint: false,
@@ -436,24 +449,96 @@ const createSipRoutingRule = defineTool({
       .array(z.string().min(1))
       .optional()
       .describe("Caller phone numbers matched by this rule"),
-    call_configs: z
-      .record(z.string(), z.unknown())
-      .describe("Target Stream call configuration for routed SIP calls"),
     caller_configs: z
-      .record(z.string(), z.unknown())
+      .object({
+        id: z
+          .string()
+          .min(1)
+          .describe("Caller user ID or Handlebars template, e.g. '{{sip.from.user}}'"),
+        custom_data: customData.describe(
+          "Custom data associated with the caller (values may use Handlebars templates)"
+        ),
+      })
       .describe("Caller user creation and mapping configuration for routed SIP calls"),
+    call_configs: z
+      .object({
+        custom_data: customData.describe("Custom data attached to the routed Stream call"),
+      })
+      .optional()
+      .describe("Optional custom data configuration for the routed Stream call"),
+    direct_routing_configs: z
+      .object({
+        call_type: z.string().min(1).describe("Target Stream call type, e.g. 'default'"),
+        call_id: z
+          .string()
+          .min(1)
+          .describe("Target Stream call ID or Handlebars template, e.g. 'sip-{{sip.to.user}}'"),
+      })
+      .optional()
+      .describe("Direct routing configuration mapping inbound SIP calls to a target call"),
+    pin_routing_configs: z
+      .object({
+        custom_webhook_url: z
+          .string()
+          .optional()
+          .describe("Optional webhook URL for custom PIN verification"),
+        pin_prompt: z.string().optional().describe("Voice prompt played when requesting a PIN"),
+        pin_success_prompt: z
+          .string()
+          .optional()
+          .describe("Voice prompt played when PIN entry succeeds"),
+        pin_failed_attempt_prompt: z
+          .string()
+          .optional()
+          .describe("Voice prompt played when a PIN attempt fails"),
+        pin_hangup_prompt: z
+          .string()
+          .optional()
+          .describe("Voice prompt played before hanging up after failed PIN attempts"),
+      })
+      .optional()
+      .describe("PIN-based routing configuration for inbound SIP calls"),
+    pin_protection_configs: z
+      .object({
+        enabled: z.boolean().optional().describe("Whether PIN protection is enabled"),
+        default_pin: z
+          .string()
+          .optional()
+          .describe("Default PIN when none is set on the target call"),
+        max_attempts: z.int().min(1).optional().describe("Maximum PIN entry attempts allowed"),
+        required_pin_digits: z
+          .int()
+          .min(1)
+          .optional()
+          .describe("Number of digits required for the PIN"),
+      })
+      .optional()
+      .describe("PIN protection settings for inbound SIP calls"),
   },
-  handler: async (args, client) =>
-    client.video.createSIPInboundRoutingRule(
+  handler: async (args, client) => {
+    if (args.direct_routing_configs === undefined && args.pin_routing_configs === undefined) {
+      throw new ToolInputError(
+        "Pass `direct_routing_configs` or `pin_routing_configs` to specify how inbound SIP calls are routed."
+      );
+    }
+    return client.video.createSIPInboundRoutingRule(
       defined({
         name: args.name,
         trunk_ids: args.trunk_ids,
         called_numbers: args.called_numbers,
         caller_numbers: args.caller_numbers,
-        call_configs: args.call_configs,
-        caller_configs: args.caller_configs,
-      }) as never
-    ),
+        caller_configs: defined(args.caller_configs),
+        call_configs: args.call_configs ? defined(args.call_configs) : undefined,
+        direct_routing_configs: args.direct_routing_configs,
+        pin_routing_configs: args.pin_routing_configs
+          ? defined(args.pin_routing_configs)
+          : undefined,
+        pin_protection_configs: args.pin_protection_configs
+          ? defined(args.pin_protection_configs)
+          : undefined,
+      })
+    );
+  },
 });
 
 const deleteSipRoutingRule = defineTool({
