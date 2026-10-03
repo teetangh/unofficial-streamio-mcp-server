@@ -212,6 +212,7 @@ Send a message to a channel on behalf of a user. Set `parent_id` to reply in a t
 | `parent_id` | string | no | Parent message ID — makes this a thread reply |
 | `show_in_channel` | boolean | no | For thread replies, also show the reply in the main channel |
 | `quoted_message_id` | string | no | Message ID this message quotes |
+| `poll_id` | string | no | ID of a poll created with chat_create_poll to attach to this message |
 | `mentioned_users` | string[] | no | User IDs mentioned in the text (max 25) |
 | `attachments` | object[] | no | Attachments (max 30) |
 | `silent` | boolean | no | Send without bumping unread counts or notifications |
@@ -1304,6 +1305,7 @@ Create or update a moderation rule with conditions, target config keys and autom
 | `conditions` | object[] | no | Rule condition objects evaluated against content or user state |
 | `groups` | object[] | no | Nested condition groups |
 | `action` | object | no | Action executed when the rule conditions match |
+| `action_sequences` | object[] | no | Escalation action sequences for call moderation rules |
 | `logic` | string | no | Boolean logic combining conditions, e.g. 'AND' or 'OR' |
 | `team` | string | no | Team the moderation rule belongs to |
 | `user_id` | string | no | User ID associated with the audit log entry |

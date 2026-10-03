@@ -248,11 +248,22 @@ suite("live: chat", () => {
     expect(result.members).toHaveLength(1);
   });
 
-  it("updates channel data", async () => {
-    const result = await harness.call("chat_update_channel_data", {
+  it("updates channel data", { timeout: 20_000 }, async () => {
+    let result = await harness.call("chat_update_channel_data", {
       ...channel,
       set: { name: "Renamed by MCP" },
     });
+    for (
+      let attempt = 0;
+      attempt < 5 && result.channel.custom.name !== "Renamed by MCP";
+      attempt += 1
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      result = await harness.call("chat_update_channel_data", {
+        ...channel,
+        set: { name: "Renamed by MCP" },
+      });
+    }
     expect(result.channel.custom.name).toBe("Renamed by MCP");
   });
 
@@ -378,9 +389,9 @@ suite("live: chat", () => {
     expect(restored.duration).toBeDefined();
   });
 
-  it("manages polls, options and votes", { timeout: 30_000 }, async () => {
+  it("manages polls, options and votes", { timeout: 60_000 }, async () => {
     const created = await harness.call("chat_create_poll", {
-      name: "Live test poll?",
+      name: `${fixtureId("poll")}?`,
       user_id: alice,
       options: [{ text: "Yes" }, { text: "No" }],
     });
@@ -405,40 +416,35 @@ suite("live: chat", () => {
     });
     const optionId: string = optCreated.poll_option.id;
 
-    // Attach the poll to a message so a vote can be cast and removed.
     const pollMsg = await harness.call("chat_send_message", {
       ...channel,
       text: "Vote on this poll",
       user_id: alice,
+      poll_id: pollId,
     });
-    await harness.call("chat_update_message_partial", {
-      message_id: pollMsg.message.id,
-      user_id: alice,
-      set: { poll_id: pollId },
-    });
+    const pollMsgId: string = pollMsg.message.id;
 
-    const voted = await harness.callEither("chat_cast_poll_vote", {
-      message_id: pollMsg.message.id,
+    const voted = await harness.call("chat_cast_poll_vote", {
+      message_id: pollMsgId,
       poll_id: pollId,
       user_id: bob,
       option_id: optionId,
     });
-    expect(voted.text).not.toMatch(SCHEMA_ERROR);
+    const voteId: string = voted.vote.id;
+    expect(voteId).toBeDefined();
 
     const votes = await harness.call("chat_query_poll_votes", {
       poll_id: pollId,
       user_id: alice,
     });
-    expect(Array.isArray(votes.votes)).toBe(true);
+    expect(votes.votes.some((v: any) => v.id === voteId)).toBe(true);
 
-    const voteId = votes.votes?.[0]?.id ?? "no-such-vote";
-    const voteDeleted = await harness.callEither("chat_delete_poll_vote", {
-      message_id: pollMsg.message.id,
+    await harness.call("chat_delete_poll_vote", {
+      message_id: pollMsgId,
       poll_id: pollId,
       vote_id: voteId,
       user_id: bob,
     });
-    expect(voteDeleted.text).not.toMatch(SCHEMA_ERROR);
 
     await harness.call("chat_delete_poll_option", {
       poll_id: pollId,

@@ -450,7 +450,7 @@ const createSipRoutingRule = defineTool({
       .optional()
       .describe("Caller phone numbers matched by this rule"),
     caller_configs: z
-      .object({
+      .looseObject({
         id: z
           .string()
           .min(1)
@@ -461,13 +461,13 @@ const createSipRoutingRule = defineTool({
       })
       .describe("Caller user creation and mapping configuration for routed SIP calls"),
     call_configs: z
-      .object({
+      .looseObject({
         custom_data: customData.describe("Custom data attached to the routed Stream call"),
       })
       .optional()
       .describe("Optional custom data configuration for the routed Stream call"),
     direct_routing_configs: z
-      .object({
+      .looseObject({
         call_type: z.string().min(1).describe("Target Stream call type, e.g. 'default'"),
         call_id: z
           .string()
@@ -477,7 +477,7 @@ const createSipRoutingRule = defineTool({
       .optional()
       .describe("Direct routing configuration mapping inbound SIP calls to a target call"),
     pin_routing_configs: z
-      .object({
+      .looseObject({
         custom_webhook_url: z
           .string()
           .optional()
@@ -499,7 +499,7 @@ const createSipRoutingRule = defineTool({
       .optional()
       .describe("PIN-based routing configuration for inbound SIP calls"),
     pin_protection_configs: z
-      .object({
+      .looseObject({
         enabled: z.boolean().optional().describe("Whether PIN protection is enabled"),
         default_pin: z
           .string()

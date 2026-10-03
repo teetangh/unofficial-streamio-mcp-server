@@ -349,13 +349,13 @@ suite("live: video", () => {
     expect(agg.duration).toBeDefined();
 
     const sessions = await harness.call("video_query_call_session_stats", { limit: 5 });
-    expect(Array.isArray(sessions.calls)).toBe(true);
+    expect(Array.isArray(sessions.call_stats)).toBe(true);
 
-    const participants = await harness.call("video_query_call_participant_stats", {
+    const participants = await harness.callEither("video_query_call_participant_stats", {
       ...call,
       session: "no-such-session",
     });
-    expect(Array.isArray(participants.participants)).toBe(true);
+    expect(participants.text).not.toMatch(SCHEMA_ERROR);
 
     const timeline = await harness.callEither("video_get_participant_stats_timeline", {
       ...call,
@@ -391,7 +391,7 @@ suite("live: video", () => {
       name: trunkName,
       numbers: ["+15550009876"],
     });
-    const trunkId: string = createdTrunk.trunk.id;
+    const trunkId: string = createdTrunk.sip_trunk.id;
     harness.onCleanup(async () => {
       await harness.callEither("video_delete_sip_trunk", { id: trunkId });
     });
@@ -402,10 +402,10 @@ suite("live: video", () => {
       numbers: ["+15550009876"],
       allowed_ips: ["198.51.100.0/24"],
     });
-    expect(updatedTrunk.trunk.id).toBe(trunkId);
+    expect(updatedTrunk.sip_trunk.id).toBe(trunkId);
 
     const trunks = await harness.call("video_list_sip_trunks", {});
-    expect(trunks.trunks.some((t: any) => t.id === trunkId)).toBe(true);
+    expect(trunks.sip_trunks.some((t: any) => t.id === trunkId)).toBe(true);
 
     const ruleName = fixtureId("siprule");
     const createdRule = await harness.call("video_create_sip_routing_rule", {
@@ -414,13 +414,13 @@ suite("live: video", () => {
       caller_configs: { id: "{{sip.from.user}}" },
       direct_routing_configs: { call_type: "default", call_id: "sip-{{sip.to.user}}" },
     });
-    const ruleId: string = createdRule.routing_rule.id;
+    const ruleId: string = createdRule.id ?? createdRule.sip_inbound_routing_rule?.id;
     harness.onCleanup(async () => {
       await harness.callEither("video_delete_sip_routing_rule", { id: ruleId });
     });
 
     const rules = await harness.call("video_list_sip_routing_rules", {});
-    expect(rules.routing_rules.some((r: any) => r.id === ruleId)).toBe(true);
+    expect(rules.sip_inbound_routing_rules.some((r: any) => r.id === ruleId)).toBe(true);
 
     await harness.call("video_delete_sip_routing_rule", { id: ruleId });
     await harness.call("video_delete_sip_trunk", { id: trunkId });

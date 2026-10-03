@@ -170,7 +170,7 @@ export function registerTools(server: McpServer, defs: readonly AnyToolDef[]): n
     if (handle) {
       count += 1;
       if (dynamic) {
-        handle.disable();
+        handle.enabled = false;
       }
       const list = byToolset.get(def.toolset) ?? [];
       list.push({ name: def.name, handle });
@@ -235,11 +235,11 @@ export function registerTools(server: McpServer, defs: readonly AnyToolDef[]): n
             continue;
           }
           for (const entry of entries) {
-            entry.handle.enable();
+            entry.handle.enabled = true;
             enabledTools.push(entry.name);
           }
         }
-        if (server.isConnected()) {
+        if (server.isConnected() && enabledTools.length > 0) {
           server.sendToolListChanged();
         }
         return toolResult({

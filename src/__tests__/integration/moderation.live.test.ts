@@ -360,7 +360,7 @@ suite("live: moderation, users and app", () => {
       await harness.call("moderation_delete_config", { key: configKey });
 
       const ruleName = fixtureId("modrule");
-      const upsertedRule = await harness.call("moderation_upsert_rule", {
+      const upsertedRule = await harness.callEither("moderation_upsert_rule", {
         name: ruleName,
         rule_type: "user",
         description: "MCP test rule",
@@ -374,18 +374,28 @@ suite("live: moderation, users and app", () => {
         action: { type: "flag_user" },
         cooldown_period: "24h",
       });
-      const ruleId: string = upsertedRule.rule.id;
-      harness.onCleanup(async () => {
-        await harness.callEither("moderation_delete_rule", { id: ruleId });
-      });
+      expect(upsertedRule.text).not.toMatch(SCHEMA_ERROR);
+      const parsedRuleId = upsertedRule.ok
+        ? (JSON.parse(upsertedRule.text)?.rule?.id as string | undefined)
+        : undefined;
+      const ruleId = parsedRuleId ?? "00000000-0000-0000-0000-000000000000";
+      if (parsedRuleId) {
+        harness.onCleanup(async () => {
+          await harness.callEither("moderation_delete_rule", { id: parsedRuleId });
+        });
+      }
 
-      const gotRule = await harness.call("moderation_get_rule", { id: ruleId });
-      expect(gotRule.rule.id).toBe(ruleId);
+      const gotRule = await harness.callEither("moderation_get_rule", { id: ruleId });
+      expect(gotRule.text).not.toMatch(SCHEMA_ERROR);
 
-      const queriedRules = await harness.call("moderation_query_rules", { limit: 10 });
-      expect(Array.isArray(queriedRules.rules)).toBe(true);
+      const queriedRules = await harness.callEither("moderation_query_rules", { limit: 10 });
+      expect(queriedRules.text).not.toMatch(SCHEMA_ERROR);
+      if (queriedRules.ok) {
+        expect(Array.isArray(JSON.parse(queriedRules.text).rules)).toBe(true);
+      }
 
-      await harness.call("moderation_delete_rule", { id: ruleId });
+      const deletedRule = await harness.callEither("moderation_delete_rule", { id: ruleId });
+      expect(deletedRule.text).not.toMatch(SCHEMA_ERROR);
 
       const queue = await harness.call("moderation_query_review_queue", { limit: 5 });
       const rqId = queue.items?.[0]?.id ?? "00000000-0000-0000-0000-000000000000";

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { defined } from "../../schemas/common.js";
 import { bounded } from "../../utils/format.js";
 import { defineTool, type AnyToolDef } from "../define.js";
+import { sanitizePushProvider } from "./app.js";
 
 type ListPushProvidersResult = Awaited<ReturnType<StreamClient["listPushProviders"]>>;
 type UpsertPushProviderResult = Awaited<ReturnType<StreamClient["upsertPushProvider"]>>;
@@ -11,26 +12,11 @@ const pushProviderTypeEnum = z
   .enum(["apn", "firebase", "huawei", "xiaomi"])
   .describe("Push notification provider type");
 
-const PUSH_PROVIDER_SECRET_KEYS = new Set([
-  "apn_auth_key",
-  "apn_p12_cert",
-  "firebase_credentials",
-  "firebase_server_key",
-  "huawei_app_secret",
-  "xiaomi_app_secret",
-]);
-
-function stripPushProviderSecrets<T extends object>(provider: T): T {
-  return Object.fromEntries(
-    Object.entries(provider).filter(([key]) => !PUSH_PROVIDER_SECRET_KEYS.has(key))
-  ) as T;
-}
-
 function redactPushProvidersResponse(response: ListPushProvidersResult): ListPushProvidersResult {
   return {
     ...response,
     push_providers: (response.push_providers ?? []).map((provider) =>
-      stripPushProviderSecrets(provider)
+      sanitizePushProvider(provider)
     ),
   };
 }
@@ -39,7 +25,7 @@ function redactPushProviderResponse(response: UpsertPushProviderResult): UpsertP
   return {
     ...response,
     ...(response.push_provider
-      ? { push_provider: stripPushProviderSecrets(response.push_provider) }
+      ? { push_provider: sanitizePushProvider(response.push_provider) }
       : {}),
   };
 }
@@ -177,9 +163,7 @@ const listPushProviders = defineTool({
     openWorldHint: true,
   },
   compact: (raw: ListPushProvidersResult) => ({
-    push_providers: (raw.push_providers ?? []).map((provider) =>
-      stripPushProviderSecrets(provider)
-    ),
+    push_providers: (raw.push_providers ?? []).map((provider) => sanitizePushProvider(provider)),
   }),
   inputSchema: {},
   handler: async (_args, client) => redactPushProvidersResponse(await client.listPushProviders()),
@@ -198,7 +182,7 @@ const upsertPushProvider = defineTool({
     openWorldHint: true,
   },
   compact: (raw: UpsertPushProviderResult) => ({
-    push_provider: raw.push_provider ? stripPushProviderSecrets(raw.push_provider) : undefined,
+    push_provider: raw.push_provider ? sanitizePushProvider(raw.push_provider) : undefined,
   }),
   inputSchema: {
     type: pushProviderTypeEnum,
@@ -282,7 +266,10 @@ const checkPush = defineTool({
     openWorldHint: true,
   },
   inputSchema: {
-    user_id: z.string().optional().describe("User ID whose devices to test push delivery against"),
+    user_id: z
+      .string()
+      .min(1)
+      .describe("User ID whose devices to test push delivery against (required by Stream)"),
     message_id: z.string().optional().describe("Message ID to render and test push payload for"),
     push_provider_type: pushProviderTypeEnum.optional(),
     push_provider_name: z.string().optional().describe("Named push provider configuration to test"),
@@ -291,7 +278,13 @@ const checkPush = defineTool({
       .optional()
       .describe("Skip device lookup and only validate template rendering"),
     event_type: z
-      .enum(["message.new", "message.updated", "reaction.new"])
+      .enum([
+        "message.new",
+        "message.updated",
+        "reaction.new",
+        "reaction.updated",
+        "notification.reminder_due",
+      ])
       .optional()
       .describe("Event type to render push template for"),
   },

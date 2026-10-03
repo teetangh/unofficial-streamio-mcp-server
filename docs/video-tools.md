@@ -773,12 +773,12 @@ Test push notification delivery and template rendering for a user or message acr
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `user_id` | string | no | User ID whose devices to test push delivery against |
+| `user_id` | string | **yes** | User ID whose devices to test push delivery against (required by Stream) |
 | `message_id` | string | no | Message ID to render and test push payload for |
 | `push_provider_type` | `apn` \| `firebase` \| `huawei` \| `xiaomi` | no | Push notification provider type |
 | `push_provider_name` | string | no | Named push provider configuration to test |
 | `skip_devices` | boolean | no | Skip device lookup and only validate template rendering |
-| `event_type` | `message.new` \| `message.updated` \| `reaction.new` | no | Event type to render push template for |
+| `event_type` | `message.new` \| `message.updated` \| `reaction.new` \| `reaction.updated` \| `notification.reminder_due` | no | Event type to render push template for |
 
 ### `app_verify_webhook` — read-only, idempotent
 
