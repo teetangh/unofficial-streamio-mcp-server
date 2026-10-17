@@ -4,3 +4,6 @@ build/
 *.tsbuildinfo
 .env.local
 coverage/
+
+# Session handoff notes (local only)
+handoff-*
