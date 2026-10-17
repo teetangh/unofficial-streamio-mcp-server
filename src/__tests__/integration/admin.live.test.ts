@@ -252,10 +252,11 @@ suite("live: channel types, call types and app settings", () => {
       const settingsCompact = await harness.call("app_get_settings", {});
       expect(settingsCompact.app.sns_secret).toBeUndefined();
       expect(settingsCompact.app.sqs_secret).toBeUndefined();
-      const settingsProvidersCompact = settingsCompact.app?.push_notifications?.providers ?? [];
-      for (const provider of settingsProvidersCompact) {
-        expect(provider.apn_auth_key).toBeUndefined();
-      }
+      const compactProvider = (settingsCompact.app?.push_notifications?.providers ?? []).find(
+        (p: any) => p.name === providerName
+      );
+      expect(compactProvider).toBeDefined();
+      expect(compactProvider.apn_auth_key).toBeUndefined();
 
       // Raw GetApp embeds every channel and call type config (~55KB), which
       // exceeds the default 30KB cap; raise the cap to verify that verbose:true
@@ -266,10 +267,11 @@ suite("live: channel types, call types and app settings", () => {
         const settingsVerbose = await harness.call("app_get_settings", { verbose: true });
         expect(settingsVerbose.app.sns_secret).toBeUndefined();
         expect(settingsVerbose.app.sqs_secret).toBeUndefined();
-        const settingsProvidersVerbose = settingsVerbose.app?.push_notifications?.providers ?? [];
-        for (const provider of settingsProvidersVerbose) {
-          expect(provider.apn_auth_key).toBeUndefined();
-        }
+        const verboseProvider = (settingsVerbose.app?.push_notifications?.providers ?? []).find(
+          (p: any) => p.name === providerName
+        );
+        expect(verboseProvider).toBeDefined();
+        expect(verboseProvider.apn_auth_key).toBeUndefined();
       } finally {
         if (prevMaxBytes === undefined) delete process.env.STREAM_MCP_MAX_RESPONSE_BYTES;
         else process.env.STREAM_MCP_MAX_RESPONSE_BYTES = prevMaxBytes;
@@ -278,10 +280,11 @@ suite("live: channel types, call types and app settings", () => {
       const settingsResource = await harness.readResource("stream://app/settings");
       expect(settingsResource.app.sns_secret).toBeUndefined();
       expect(settingsResource.app.sqs_secret).toBeUndefined();
-      const resourceProviders = settingsResource.app?.push_notifications?.providers ?? [];
-      for (const provider of resourceProviders) {
-        expect(provider.apn_auth_key).toBeUndefined();
-      }
+      const resourceProvider = (settingsResource.app?.push_notifications?.providers ?? []).find(
+        (p: any) => p.name === providerName
+      );
+      expect(resourceProvider).toBeDefined();
+      expect(resourceProvider.apn_auth_key).toBeUndefined();
 
       await harness.call("app_delete_push_provider", {
         type: "apn",
@@ -388,6 +391,15 @@ suite("live: channel types, call types and app settings", () => {
     const messagingType = await harness.readResource("stream://chat/channel-types/messaging");
     expect(messagingType.name).toBe("messaging");
     expect(messagingType.grants).toBeDefined();
+
+    // "../../app" would otherwise resolve to GET /app and return the raw,
+    // unredacted settings — through a read-only tool or a resource template.
+    const traversal = await harness.callEither("chat_get_channel_type", { name: "../../app" });
+    expect(traversal.ok).toBe(false);
+    expect(traversal.text).toMatch(/Stream identifiers cannot/);
+    await expect(harness.readResource("stream://chat/channel-types/..%2F..%2Fapp")).rejects.toThrow(
+      /Stream identifiers cannot/
+    );
 
     const callTypes = await harness.readResource("stream://video/call-types");
     expect(callTypes.call_types.map((t: any) => t.name)).toContain("default");

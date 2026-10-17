@@ -624,10 +624,10 @@ export const moderationCases: ToolCase[] = [
   },
   {
     tool: "moderation_unban_user",
-    args: { target_user_id: "bob", unbanned_by_id: "alice", banned_by_id: "mod" },
+    args: { target_user_id: "bob", banned_by_id: "mod" },
     path: "moderation.unban",
     // `created_by` identifies who created the ban, not who is lifting it.
-    payload: { target_user_id: "bob", unbanned_by_id: "alice", created_by: "mod" },
+    payload: { target_user_id: "bob", created_by: "mod" },
   },
   {
     tool: "moderation_query_banned_users",

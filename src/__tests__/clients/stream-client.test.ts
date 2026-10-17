@@ -82,3 +82,36 @@ describe("getClient", () => {
     expect(getClient()).not.toBe(first);
   });
 });
+
+describe("path parameter guard", () => {
+  // These go through the real SDK object, so an SDK upgrade that renames its
+  // internal ApiClient fields fails here instead of silently dropping the guard.
+  const client = () => {
+    process.env.STREAM_API_KEY = "k";
+    process.env.STREAM_API_SECRET = "s";
+    process.env.STREAM_BASE_URL = "https://example.invalid";
+    return getClient();
+  };
+
+  it.each([
+    ["chat", () => client().chat.getChannelType({ name: "../../app" })],
+    ["video", () => client().video.getCallType({ name: "../../app" })],
+    ["moderation", () => client().moderation.getConfig({ key: "a/b" })],
+    ["common", () => client().getPermission({ id: "%2e%2e" })],
+  ])("rejects traversal through the %s API client before any request", async (_label, call) => {
+    await expect(call()).rejects.toThrow(/Stream identifiers cannot/);
+  });
+
+  it.each(["..", ".", "", "a?b=1", "a#b", "a\\b"])("rejects %j", async (name) => {
+    await expect(client().chat.getChannelType({ name })).rejects.toThrow(
+      /Stream identifiers cannot/
+    );
+  });
+
+  it("lets ordinary identifiers through to the network", async () => {
+    // example.invalid never resolves, so reaching fetch shows the guard passed.
+    await expect(client().chat.getChannelType({ name: "messaging" })).rejects.not.toThrow(
+      /Stream identifiers cannot/
+    );
+  });
+});

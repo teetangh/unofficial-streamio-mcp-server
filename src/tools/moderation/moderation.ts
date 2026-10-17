@@ -104,7 +104,7 @@ const unbanUser = defineTool({
   title: "Unban user",
   toolset: "moderation",
   description:
-    "Lift a ban. Pass the same `channel_cid` that was used to ban, or omit it to lift an app-wide ban. `banned_by_id` selects which ban to lift when a user was banned by several moderators; `unbanned_by_id` records who is lifting it.",
+    "Lift a ban. Pass the same `channel_cid` that was used to ban, or omit it to lift an app-wide ban. `banned_by_id` selects which ban to lift when a user was banned by several moderators.",
   annotations: {
     readOnlyHint: false,
     destructiveHint: false,
@@ -117,7 +117,6 @@ const unbanUser = defineTool({
       .string()
       .optional()
       .describe("Channel the ban was applied to. Omit for an app-wide unban."),
-    unbanned_by_id: z.string().optional().describe("Moderator performing the unban"),
     banned_by_id: z
       .string()
       .optional()
@@ -130,7 +129,6 @@ const unbanUser = defineTool({
       defined({
         target_user_id: args.target_user_id,
         channel_cid: args.channel_cid,
-        unbanned_by_id: args.unbanned_by_id,
         // The `created_by` query param identifies who created the *ban*, not
         // who is lifting it — they are different people.
         created_by: args.banned_by_id,
@@ -282,7 +280,7 @@ const queryReviewQueue = defineTool({
   title: "Query review queue",
   toolset: "moderation",
   description:
-    "List items awaiting moderator review. Common filters: {entity_type: {$eq: 'stream:chat:v1:message'}}, {review_queue_item_status: {$eq: 'pending'}}. Act on an item with moderation_submit_action.",
+    "List items awaiting moderator review. Common filters: {entity_type: {$eq: 'stream:chat:v1:message'}}, {status: {$in: ['pending', 'flagged']}} for items still awaiting review (Stream accepts unknown filter fields silently, so a misspelt field returns an empty list rather than an error). Act on an item with moderation_submit_action.",
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,

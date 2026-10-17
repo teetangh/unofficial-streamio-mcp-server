@@ -62,10 +62,7 @@ suite("live: moderation, users and app", () => {
     });
     expect(banned.bans.length).toBeGreaterThan(0);
 
-    await harness.call("moderation_unban_user", {
-      target_user_id: offender,
-      unbanned_by_id: moderator,
-    });
+    await harness.call("moderation_unban_user", { target_user_id: offender });
   });
 
   it("mutes and unmutes a user", async () => {
@@ -309,22 +306,28 @@ suite("live: moderation, users and app", () => {
       });
       expect(deactTask.task_id).toBeDefined();
 
+      let deactTaskStatus = "pending";
       for (let attempt = 0; attempt < 20; attempt += 1) {
         const task = await harness.call("app_get_task", { task_id: deactTask.task_id });
-        if (task.status !== "pending" && task.status !== "running") break;
+        deactTaskStatus = task.status;
+        if (deactTaskStatus !== "pending" && deactTaskStatus !== "running") break;
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
+      expect(deactTaskStatus).toBe("completed");
 
       const reactTask = await harness.call("users_reactivate_batch", {
         user_ids: [batchUser],
       });
       expect(reactTask.task_id).toBeDefined();
 
+      let reactTaskStatus = "pending";
       for (let attempt = 0; attempt < 20; attempt += 1) {
         const task = await harness.call("app_get_task", { task_id: reactTask.task_id });
-        if (task.status !== "pending" && task.status !== "running") break;
+        reactTaskStatus = task.status;
+        if (reactTaskStatus !== "pending" && reactTaskStatus !== "running") break;
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
+      expect(reactTaskStatus).toBe("completed");
     }
   );
 
@@ -356,6 +359,22 @@ suite("live: moderation, users and app", () => {
         filter: { key: configKey },
       });
       expect(queriedCfgs.configs.some((c: any) => c.key === configKey)).toBe(true);
+
+      // The description promises a full replace; pin it, because a model that
+      // believes upsert merges will silently wipe sections it didn't resend.
+      await harness.call("moderation_upsert_config", {
+        key: configKey,
+        flood_config: { enabled: true },
+      });
+      await expect
+        .poll(
+          async () => {
+            const replaced = await harness.call("moderation_get_config", { key: configKey });
+            return replaced.config.automod_platform_circumvention_config ?? null;
+          },
+          { timeout: 15_000, interval: 1_000 }
+        )
+        .toBeNull();
 
       await harness.call("moderation_delete_config", { key: configKey });
 

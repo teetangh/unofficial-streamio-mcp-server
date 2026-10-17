@@ -1236,9 +1236,9 @@ Get a single moderation policy configuration by its key and optional team.
 | `key` | string | **yes** | Moderation config key, e.g. 'default' or 'messaging:default' |
 | `team` | string | no | Team the moderation config belongs to |
 
-### `moderation_upsert_config` — idempotent
+### `moderation_upsert_config` — **destructive**, idempotent
 
-Create or update a moderation policy configuration for text, image, video, audio, blocklists, LLM, circumvention, semantic filters, flood or toxicity.
+Create or replace a moderation policy configuration for text, image, video, audio, blocklists, LLM, circumvention, semantic filters, flood or toxicity. This is a full replace — any section you omit is cleared on an existing key, so read it with moderation_get_config first and send every section you want to keep.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -1290,9 +1290,9 @@ Get a single moderation rule by its unique ID, including its conditions and acti
 | --- | --- | --- | --- |
 | `id` | string | **yes** | Moderation rule ID |
 
-### `moderation_upsert_rule` — idempotent
+### `moderation_upsert_rule` — **destructive**, idempotent
 
-Create or update a moderation rule with conditions, target config keys and automated actions.
+Create or replace a moderation rule with conditions, target config keys and automated actions. Upserting an existing rule overwrites it — read it with moderation_get_rule first when editing.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |

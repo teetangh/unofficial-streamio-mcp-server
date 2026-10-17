@@ -634,10 +634,10 @@ const upsertModerationConfig = defineTool({
   title: "Upsert moderation config",
   toolset: "moderation",
   description:
-    "Create or update a moderation policy configuration for text, image, video, audio, blocklists, LLM, circumvention, semantic filters, flood or toxicity.",
+    "Create or replace a moderation policy configuration for text, image, video, audio, blocklists, LLM, circumvention, semantic filters, flood or toxicity. This is a full replace — any section you omit is cleared on an existing key, so read it with moderation_get_config first and send every section you want to keep.",
   annotations: {
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
     idempotentHint: true,
     openWorldHint: true,
   },
@@ -682,6 +682,17 @@ const upsertModerationConfig = defineTool({
     velocity_filter_config: velocityFilterConfigSchema
       .optional()
       .describe("Velocity spam filter configuration"),
+    // Upsert is a full replace, so every section moderation_get_config can
+    // return has to be sendable back — otherwise a read-modify-write drops it.
+    intent_config: z.looseObject({}).optional().describe("Intent classification configuration"),
+    rule_builder_config: z
+      .looseObject({})
+      .optional()
+      .describe("Rule builder configuration (rules evaluated against this config)"),
+    video_call_rule_config: z
+      .looseObject({})
+      .optional()
+      .describe("Video call moderation rule configuration"),
   },
   handler: async (args, client) =>
     client.moderation.upsertConfig(
@@ -704,6 +715,9 @@ const upsertModerationConfig = defineTool({
         flood_config: args.flood_config,
         google_vision_config: args.google_vision_config,
         velocity_filter_config: args.velocity_filter_config,
+        intent_config: args.intent_config,
+        rule_builder_config: args.rule_builder_config,
+        video_call_rule_config: args.video_call_rule_config,
       })
     ),
 });
@@ -783,10 +797,10 @@ const upsertModerationRule = defineTool({
   title: "Upsert moderation rule",
   toolset: "moderation",
   description:
-    "Create or update a moderation rule with conditions, target config keys and automated actions.",
+    "Create or replace a moderation rule with conditions, target config keys and automated actions. Upserting an existing rule overwrites it — read it with moderation_get_rule first when editing.",
   annotations: {
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
     idempotentHint: true,
     openWorldHint: true,
   },

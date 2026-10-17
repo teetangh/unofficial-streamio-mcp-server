@@ -549,3 +549,56 @@ describe("push provider secret stripping", () => {
     expect(out.push_provider.firebase_credentials).toBeUndefined();
   });
 });
+
+describe("SIP credentials", () => {
+  const trunk = {
+    id: "t1",
+    name: "main",
+    numbers: ["+15550001111"],
+    uri: "sip:t1@sip.example",
+    username: "t1",
+    password: "dial-in-secret",
+    allowed_ips: [],
+    created_at: AT,
+    updated_at: AT,
+  };
+  const rule = {
+    id: "r1",
+    name: "pin",
+    trunk_ids: ["t1"],
+    called_numbers: [],
+    duration: "1ms",
+    created_at: AT,
+    updated_at: AT,
+    pin_protection_configs: { enabled: true, default_pin: "4321", max_attempts: 3 },
+  };
+  const client = {
+    video: {
+      listSIPTrunks: async () => ({ duration: "1ms", sip_trunks: [trunk] }),
+      createSIPTrunk: async () => ({ duration: "1ms", sip_trunk: trunk }),
+      updateSIPTrunk: async () => ({ duration: "1ms", sip_trunk: trunk }),
+      listSIPInboundRoutingRule: async () => ({
+        duration: "1ms",
+        sip_inbound_routing_rules: [rule],
+      }),
+      createSIPInboundRoutingRule: async () => rule,
+    },
+  } as never;
+
+  // Redaction lives in the handler, so it holds under verbose:true as well.
+  it.each([
+    ["video_list_sip_trunks", {}],
+    ["video_create_sip_trunk", { name: "main", numbers: ["+15550001111"] }],
+    ["video_update_sip_trunk", { id: "t1", name: "main", numbers: ["+15550001111"] }],
+    ["video_list_sip_routing_rules", {}],
+    [
+      "video_create_sip_routing_rule",
+      { name: "pin", trunk_ids: ["t1"], caller_configs: { id: "x" }, pin_routing_configs: {} },
+    ],
+  ])("%s never returns the password or default PIN", async (name, args) => {
+    const out = JSON.stringify(await tool(name).handler(args as never, client));
+    expect(out).not.toContain("dial-in-secret");
+    expect(out).not.toContain("4321");
+    expect(out).toContain("[redacted]");
+  });
+});
