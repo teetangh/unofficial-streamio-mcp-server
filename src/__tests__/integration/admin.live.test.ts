@@ -55,7 +55,7 @@ suite("live: channel types, call types and app settings", () => {
     await harness.teardown();
   }, 60_000);
 
-  it("creates, updates and deletes a channel type", { timeout: 60_000 }, async () => {
+  it("creates, updates and deletes a channel type", { timeout: 120_000 }, async () => {
     const created = await harness.call("chat_create_channel_type", {
       name: channelTypeName,
       automod: "disabled",
@@ -194,7 +194,8 @@ suite("live: channel types, call types and app settings", () => {
 
   it(
     "lists permissions, gets a permission, and manages custom roles",
-    { timeout: 30_000 },
+    // Two eventually() polls of up to 45 s each.
+    { timeout: 120_000 },
     async () => {
       const perms = await harness.call("app_list_permissions", {});
       expect(perms.permissions.length).toBeGreaterThan(0);
