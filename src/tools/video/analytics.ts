@@ -302,6 +302,28 @@ const sendClosedCaption = defineTool({
     ),
 });
 
+/**
+ * SIP trunk passwords and routing-rule default PINs are working dial-in
+ * credentials. Redact them in the handler rather than the compact projection,
+ * so `verbose: true` cannot bring them back — video_list_sip_trunks is
+ * read-only, so it stays registered under STREAM_MCP_READ_ONLY. The marker
+ * keeps "a password is set" visible, which is what a debugging caller needs.
+ */
+const REDACTED = "[redacted]";
+
+function redactTrunk<T extends { password?: string }>(trunk: T | undefined): T | undefined {
+  return trunk?.password ? { ...trunk, password: REDACTED } : trunk;
+}
+
+function redactRoutingRule<T extends { pin_protection_configs?: { default_pin?: string } }>(
+  rule: T
+): T {
+  const pin = rule.pin_protection_configs;
+  return pin?.default_pin
+    ? { ...rule, pin_protection_configs: { ...pin, default_pin: REDACTED } }
+    : rule;
+}
+
 const listSipTrunks = defineTool({
   name: "video_list_sip_trunks",
   title: "List SIP trunks",
@@ -315,7 +337,10 @@ const listSipTrunks = defineTool({
   },
   compact: bounded,
   inputSchema: {},
-  handler: async (_args, client) => client.video.listSIPTrunks(),
+  handler: async (_args, client) => {
+    const response = await client.video.listSIPTrunks();
+    return { ...response, sip_trunks: response.sip_trunks?.map((trunk) => redactTrunk(trunk)!) };
+  },
 });
 
 const createSipTrunk = defineTool({
@@ -342,15 +367,17 @@ const createSipTrunk = defineTool({
       .describe("Allowed IPv4/IPv6 addresses or CIDR blocks"),
     password: z.string().optional().describe("Password for SIP trunk authentication"),
   },
-  handler: async (args, client) =>
-    client.video.createSIPTrunk(
+  handler: async (args, client) => {
+    const response = await client.video.createSIPTrunk(
       defined({
         name: args.name,
         numbers: args.numbers,
         allowed_ips: args.allowed_ips,
         password: args.password,
       })
-    ),
+    );
+    return { ...response, sip_trunk: redactTrunk(response.sip_trunk) };
+  },
 });
 
 const updateSipTrunk = defineTool({
@@ -378,8 +405,8 @@ const updateSipTrunk = defineTool({
       .describe("Updated allowed IPv4/IPv6 addresses or CIDR blocks"),
     password: z.string().optional().describe("Updated password for SIP trunk authentication"),
   },
-  handler: async (args, client) =>
-    client.video.updateSIPTrunk(
+  handler: async (args, client) => {
+    const response = await client.video.updateSIPTrunk(
       defined({
         id: args.id,
         name: args.name,
@@ -387,7 +414,9 @@ const updateSipTrunk = defineTool({
         allowed_ips: args.allowed_ips,
         password: args.password,
       })
-    ),
+    );
+    return { ...response, sip_trunk: redactTrunk(response.sip_trunk) };
+  },
 });
 
 const deleteSipTrunk = defineTool({
@@ -420,7 +449,13 @@ const listSipRoutingRules = defineTool({
   },
   compact: bounded,
   inputSchema: {},
-  handler: async (_args, client) => client.video.listSIPInboundRoutingRule(),
+  handler: async (_args, client) => {
+    const response = await client.video.listSIPInboundRoutingRule();
+    return {
+      ...response,
+      sip_inbound_routing_rules: response.sip_inbound_routing_rules?.map(redactRoutingRule),
+    };
+  },
 });
 
 const createSipRoutingRule = defineTool({
@@ -521,7 +556,7 @@ const createSipRoutingRule = defineTool({
         "Pass `direct_routing_configs` or `pin_routing_configs` to specify how inbound SIP calls are routed."
       );
     }
-    return client.video.createSIPInboundRoutingRule(
+    const response = await client.video.createSIPInboundRoutingRule(
       defined({
         name: args.name,
         trunk_ids: args.trunk_ids,
@@ -538,6 +573,7 @@ const createSipRoutingRule = defineTool({
           : undefined,
       })
     );
+    return redactRoutingRule(response);
   },
 });
 

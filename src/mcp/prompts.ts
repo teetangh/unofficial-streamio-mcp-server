@@ -25,7 +25,9 @@ export function registerPrompts(server: McpServer): void {
       const effectiveLimit =
         Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 100) : 20;
       const filterObj: Record<string, unknown> = {
-        status: { $eq: "pending" },
+        // Items Stream has flagged sit at "flagged", not "pending" — filtering
+        // on "pending" alone returned an empty queue on an app with 8 open items.
+        status: { $in: ["pending", "flagged"] },
         ...(entity_type ? { entity_type: { $eq: entity_type } } : {}),
       };
 

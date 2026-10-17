@@ -18,6 +18,18 @@ suite("live: video", () => {
   const callId = fixtureId("call");
   const call = { call_type: "default", call_id: callId };
 
+  /**
+   * SIP fixtures are deleted by the test itself on the happy path, so cleanup
+   * tolerates "already gone" — but any other failure must reach teardown, or a
+   * broken delete leaks a trunk or rule into the app without anyone noticing.
+   */
+  const deleteSipFixture = async (tool: string, id: string) => {
+    const result = await harness.callEither(tool, { id });
+    if (!result.ok && !/not found|does not exist/i.test(result.text)) {
+      throw new Error(`${tool}(${id}) failed: ${result.text}`);
+    }
+  };
+
   beforeAll(async () => {
     await harness.connect();
     await harness.call("chat_upsert_users", {
@@ -387,14 +399,16 @@ suite("live: video", () => {
 
   it("manages SIP trunks and inbound routing rules", { timeout: 30_000 }, async () => {
     const trunkName = fixtureId("siptrunk");
+    const trunkPassword = `pw-${fixtureId("sip")}`;
     const createdTrunk = await harness.call("video_create_sip_trunk", {
       name: trunkName,
       numbers: ["+15550009876"],
+      password: trunkPassword,
     });
+    expect(JSON.stringify(createdTrunk)).not.toContain(trunkPassword);
     const trunkId: string = createdTrunk.sip_trunk.id;
-    harness.onCleanup(async () => {
-      await harness.callEither("video_delete_sip_trunk", { id: trunkId });
-    });
+    expect(trunkId).toBeTruthy();
+    harness.onCleanup(() => deleteSipFixture("video_delete_sip_trunk", trunkId));
 
     const updatedTrunk = await harness.call("video_update_sip_trunk", {
       id: trunkId,
@@ -404,8 +418,10 @@ suite("live: video", () => {
     });
     expect(updatedTrunk.sip_trunk.id).toBe(trunkId);
 
-    const trunks = await harness.call("video_list_sip_trunks", {});
+    const trunks = await harness.call("video_list_sip_trunks", { verbose: true });
     expect(trunks.sip_trunks.some((t: any) => t.id === trunkId)).toBe(true);
+    // A read-only tool must not hand out working dial-in credentials.
+    expect(JSON.stringify(trunks)).not.toContain(trunkPassword);
 
     const ruleName = fixtureId("siprule");
     const createdRule = await harness.call("video_create_sip_routing_rule", {
@@ -415,9 +431,8 @@ suite("live: video", () => {
       direct_routing_configs: { call_type: "default", call_id: "sip-{{sip.to.user}}" },
     });
     const ruleId: string = createdRule.id ?? createdRule.sip_inbound_routing_rule?.id;
-    harness.onCleanup(async () => {
-      await harness.callEither("video_delete_sip_routing_rule", { id: ruleId });
-    });
+    expect(ruleId).toBeTruthy();
+    harness.onCleanup(() => deleteSipFixture("video_delete_sip_routing_rule", ruleId));
 
     const rules = await harness.call("video_list_sip_routing_rules", {});
     expect(rules.sip_inbound_routing_rules.some((r: any) => r.id === ruleId)).toBe(true);
