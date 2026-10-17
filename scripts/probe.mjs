@@ -100,6 +100,8 @@ const ARGS = {
     test_mode: true,
   },
   moderation_list_blocklists: {},
+  moderation_get_flag_count: user && { entity_creator_id: user.id },
+  moderation_list_policy_test_sets: {},
   video_get_call: callRef,
   video_query_calls: { limit: 2 },
   video_query_call_members: callRef && { ...callRef, limit: 2 },

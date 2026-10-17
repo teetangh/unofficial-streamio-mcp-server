@@ -2,7 +2,7 @@
 
 An [MCP](https://modelcontextprotocol.io) server that gives an AI assistant deterministic, typed access to the [Stream.io](https://getstream.io) Chat, Video, Users, Moderation and App APIs.
 
-**205 tools**, 7 MCP resources/templates, and 4 operational MCP prompts — every one explicitly schema-checked against Stream's server-side API. No generic HTTP escape hatch.
+**212 tools**, 7 MCP resources/templates, and 4 operational MCP prompts — every one explicitly schema-checked against Stream's server-side API. No generic HTTP escape hatch.
 
 > Unofficial and not affiliated with Stream.
 
@@ -64,7 +64,7 @@ Three knobs keep context token usage low when your session only needs part of th
 // Only chat + users — 80 tools
 "env": { "STREAM_MCP_TOOLSETS": "chat,users" }
 
-// Read-only: 77 tools, nothing that writes. Recommended for production apps.
+// Read-only: 81 tools, nothing that writes. Recommended for production apps.
 "env": { "STREAM_MCP_READ_ONLY": "true" }
 
 // Dynamic toolsets: starts with 2 meta-tools and enables toolsets on demand
@@ -81,15 +81,15 @@ The API secret is an **admin credential** for the entire Stream app. This server
 
 ## Tools
 
-| Toolset       | Tools | Covers                                                                                             |
-| ------------- | ----- | -------------------------------------------------------------------------------------------------- |
-| `chat`        | 54    | Channels, messages, threads, reactions, search, read state, polls, reminders, drafts               |
-| `chat-admin`  | 14    | Channel types, exports, slash commands, push templates, batch channel delete                       |
-| `users`       | 26    | User CRUD, tokens, guests, blocks, deactivation, push devices, user groups                         |
-| `moderation`  | 28    | Bans, mutes, flags, review queue, blocklists, policy checks, configs, rules, appeals               |
-| `video`       | 44    | Calls, members, participants, recording, transcription, HLS/RTMP, quality stats, closed captions   |
-| `video-admin` | 15    | Call types, SIP inbound trunks, SIP routing rules                                                  |
-| `app`         | 19    | App settings, rate limits, async tasks, roles, permissions, push providers, webhooks, ext. storage |
+| Toolset       | Tools | Covers                                                                                                                         |
+| ------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `chat`        | 54    | Channels, messages, threads, reactions, search, read state, polls, reminders, drafts                                           |
+| `chat-admin`  | 14    | Channel types, exports, slash commands, push templates, batch channel delete                                                   |
+| `users`       | 26    | User CRUD, tokens, guests, blocks, deactivation, push devices, user groups                                                     |
+| `moderation`  | 35    | Bans, mutes, flags, flag counts, review queue, blocklists, policy checks, configs, rules, appeals, policy test runs            |
+| `video`       | 48    | Calls, members, participants, recording, transcription, HLS/RTMP, quality stats, attendance, ring diagnostics, closed captions |
+| `video-admin` | 16    | Call types, SIP inbound trunks, SIP routing rules                                                                              |
+| `app`         | 19    | App settings, rate limits, async tasks, roles, permissions, push providers, webhooks, ext. storage                             |
 
 Full per-tool parameter reference (generated from the registry, never hand-edited):
 

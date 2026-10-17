@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { getClient } from "../../clients/index.js";
 import { fixtureId, hasCredentials, LiveHarness } from "./harness.js";
 
 const suite = hasCredentials ? describe : describe.skip;
@@ -439,6 +440,88 @@ suite("live: moderation, users and app", () => {
       expect(getAppealRes.text).not.toMatch(SCHEMA_ERROR);
     }
   );
+
+  it("counts flags against the offender's content", async () => {
+    // The offender's message was flagged earlier in this suite.
+    const all = await harness.call("moderation_get_flag_count", { entity_creator_id: offender });
+    expect(all.count).toBeGreaterThanOrEqual(1);
+    const none = await harness.call("moderation_get_flag_count", {
+      entity_creator_id: fixtureId("never-flagged"),
+    });
+    expect(none.count).toBe(0);
+  });
+
+  it("creates, runs, reads and deletes a policy test set", { timeout: 90_000 }, async () => {
+    // A dedicated check-mode policy: the scratch app has no AI provider, so
+    // rows finish as provider_error and nothing is billed or flagged — but
+    // the run still reaches a terminal state, which is what is under test.
+    const configKey = `mcptest:${fixtureId("evalcfg")}`;
+    const client = getClient();
+    await client.moderation.upsertConfig({
+      key: configKey,
+      ai_text_config: { rules: [{ label: "INSULT", action: "flag" }] },
+    });
+    harness.onCleanup(() => client.moderation.deleteConfig({ key: configKey }));
+
+    const created = await harness.call("moderation_create_policy_test_set", {
+      name: fixtureId("evalset"),
+      config_key: configKey,
+      mode: "check",
+      rows: [
+        { text: "hello there, nice day", recommended_action: "keep" },
+        { text: "you are an idiot", recommended_action: "flag" },
+      ],
+    });
+    const setId: string = created.set.id;
+    expect(created.set.row_count).toBe(2);
+    harness.onCleanup(async () => {
+      try {
+        await client.moderation.deletePolicyTestSet({ id: setId });
+      } catch (error) {
+        if (!/does not exist/.test(String(error))) throw error;
+      }
+    });
+
+    const listed = await harness.call("moderation_list_policy_test_sets", {});
+    expect(listed.sets.some((set: any) => set.id === setId)).toBe(true);
+
+    const started = await harness.call("moderation_start_policy_test_run", { id: setId });
+    const runId: string = started.run.id;
+    expect(started.run.status).toBe("pending");
+
+    // One run per set: Stream refuses a second while the first is live.
+    const second = await harness.callEither("moderation_start_policy_test_run", { id: setId });
+    if (!second.ok) expect(second.text).toMatch(/already in progress/);
+
+    let finished: any;
+    await expect
+      .poll(
+        async () => {
+          finished = await harness.call("moderation_get_policy_test_run", { id: runId });
+          return ["completed", "error", "cancelled"].includes(finished.run.status);
+        },
+        { timeout: 60_000, interval: 2_000 }
+      )
+      .toBe(true);
+    expect(finished.run.rows_total).toBe(2);
+    if (finished.run.status === "completed") expect(finished.results).toHaveLength(2);
+
+    const failedOnly = await harness.call("moderation_get_policy_test_run", {
+      id: runId,
+      only_failed: true,
+    });
+    for (const row of failedOnly.results ?? []) expect(row.passed).not.toBe(true);
+
+    const got = await harness.call("moderation_get_policy_test_set", { id: setId });
+    expect(got.set.rows).toHaveLength(2);
+    expect(got.recent_runs.some((run: any) => run.id === runId)).toBe(true);
+
+    await harness.call("moderation_delete_policy_test_set", { id: setId });
+    const gone = await harness.callExpectingError("moderation_get_policy_test_set", {
+      id: setId,
+    });
+    expect(gone).toMatch(/does not exist/);
+  });
 
   it("deletes the flagged message", async () => {
     const result = await harness.call("chat_delete_message", { message_id: messageId, hard: true });

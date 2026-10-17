@@ -1,6 +1,11 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ALL_TOOLS, getTool } from "../tools/registry.js";
 import { ALL_TOOLSETS } from "../config.js";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 describe("tool registry", () => {
   it("has no duplicate names", () => {
@@ -73,6 +78,31 @@ describe("tool registry", () => {
     const used = new Set(ALL_TOOLS.map((tool) => tool.toolset));
     for (const toolset of ALL_TOOLSETS) {
       expect(used, toolset).toContain(toolset);
+    }
+  });
+});
+
+/*
+ * The README and configuration guide state tool counts in prose and in a
+ * per-toolset table. Those are hand-maintained, and went stale twice in a row
+ * (video-admin after 0.4.2, video after #38) without anything failing.
+ */
+describe("documented tool counts", () => {
+  const readOnlyCount = ALL_TOOLS.filter((tool) => tool.annotations.readOnlyHint === true).length;
+  const perToolset = (toolset: string) =>
+    ALL_TOOLS.filter((tool) => tool.toolset === toolset).length;
+
+  it.each(["README.md", "docs/configuration.md"])("%s matches the registry", (file) => {
+    const text = readFileSync(join(ROOT, file), "utf8");
+
+    for (const [, toolset, count] of text.matchAll(/^\| `([a-z-]+)`\s*\| (\d+)\s*\|/gm)) {
+      expect(Number(count), `${file}: ${toolset} row`).toBe(perToolset(toolset));
+    }
+    for (const [, count] of text.matchAll(/\*\*(\d+) tools\*\*/g)) {
+      expect(Number(count), `${file}: total`).toBe(ALL_TOOLS.length);
+    }
+    for (const [, count] of text.matchAll(/(?:Read-only: |only the )(\d+) tools/g)) {
+      expect(Number(count), `${file}: read-only`).toBe(readOnlyCount);
     }
   });
 });

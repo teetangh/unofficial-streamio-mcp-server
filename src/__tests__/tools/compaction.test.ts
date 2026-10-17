@@ -739,3 +739,76 @@ describe("video attendance projections", () => {
     expect(out.next).toBe("n1");
   });
 });
+
+describe("moderation policy tests", () => {
+  const run = {
+    id: "ptr1",
+    set_id: "pts1",
+    task_id: "internal-task",
+    status: "completed",
+    config_key: "cfg",
+    rows_total: 3,
+    rows_completed: 3,
+    triggered_by: "",
+    created_at: AT,
+    metrics: { totals: { rows: 3, scored: 2, unscored: 1, passed: 1, failed: 1 } },
+  };
+  const results = [
+    { row_index: 0, message_text: "ok", scored: true, passed: true },
+    {
+      row_index: 1,
+      message_text: "bad",
+      scored: true,
+      passed: false,
+      failure_reason: "label_mismatch",
+    },
+    {
+      row_index: 2,
+      message_text: "?",
+      scored: false,
+      passed: null,
+      failure_reason: "provider_error",
+    },
+  ];
+
+  it("only_failed keeps rows that did not pass, in the handler so verbose honours it", async () => {
+    const client = {
+      moderation: { getPolicyTestRun: async () => ({ duration: "1ms", run, results }) },
+    } as never;
+    const raw: any = await tool("moderation_get_policy_test_run").handler(
+      { id: "ptr1", only_failed: true },
+      client
+    );
+    expect(raw.results.map((row: any) => row.row_index)).toEqual([1, 2]);
+    const out = view("moderation_get_policy_test_run", raw);
+    expect(out.run.metrics.totals.failed).toBe(1);
+    expect(out.run.task_id).toBeUndefined();
+  });
+
+  it("lists sets without their rows", () => {
+    const out = view("moderation_list_policy_test_sets", {
+      duration: "1ms",
+      sets: [
+        {
+          id: "pts1",
+          name: "insults",
+          mode: "check",
+          config_key: "cfg",
+          row_count: 2,
+          created_by: "",
+          created_at: AT,
+          updated_at: AT,
+          rows: [{ text: "secret test content" }],
+          last_run: run,
+        },
+      ],
+    });
+    expect(out.sets[0]).toMatchObject({
+      id: "pts1",
+      row_count: 2,
+      last_run: { status: "completed" },
+    });
+    expect(out.sets[0].rows).toBeUndefined();
+    expect(JSON.stringify(out)).not.toContain("secret test content");
+  });
+});

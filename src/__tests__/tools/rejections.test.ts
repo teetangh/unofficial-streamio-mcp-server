@@ -79,6 +79,12 @@ const REJECTIONS: [string, Record<string, unknown>, RegExp][] = [
     { name: "inbound", trunk_ids: ["tr1"], caller_configs: { id: "{{sip.from.user}}" } },
     /`direct_routing_configs` or `pin_routing_configs`/,
   ],
+  ["moderation_create_policy_test_set", { name: "neither" }, /exactly one of `rows` or `seed`/],
+  [
+    "moderation_create_policy_test_set",
+    { name: "both", rows: [{ text: "hi" }], seed: { limit: 5 } },
+    /exactly one of `rows` or `seed`/,
+  ],
   [
     // Stream enforces the same rule on update (verified live).
     "video_update_sip_routing_rule",
