@@ -46,7 +46,7 @@ const CALL_LIST_KEYS = [
  * distinguishes a report whose retention window has expired from a call that
  * never had a session at all.
  */
-export const SESSION_DERIVED_NOT_FOUND =
+const SESSION_DERIVED_NOT_FOUND =
   'Not found. Call reports and call stats are derived from call activity and cannot be created — read Stream\'s message above: "expired" means the retention window has passed, while "does not exist" means the call never had a session. video_query_call_stats keeps per-session durations after a report has expired.';
 
 /** The busiest few groups; the tail of a by-country breakdown is noise. */

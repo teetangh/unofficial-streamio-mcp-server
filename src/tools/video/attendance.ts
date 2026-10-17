@@ -13,9 +13,16 @@ import {
 } from "../../schemas/common.js";
 import { bounded, pick } from "../../utils/format.js";
 import { defineTool, type AnyToolDef } from "../define.js";
-import { SESSION_DERIVED_NOT_FOUND } from "./calls.js";
 
 const isoDateTime = z.iso.datetime({ offset: true });
+
+/**
+ * Seen live: a call that was created and rung has a session but no attendance
+ * — Stream only records it once a participant connects media. The call-report
+ * hint ("does not exist means the call never had a session") would mislead.
+ */
+const ATTENDANCE_NOT_FOUND =
+  "Not found. Attendance and participant metrics are recorded only once participants connect audio/video — a call that was created or rung but never joined has a session ID and no attendance. Check video_get_call (session.participants) or video_query_call_ring_attempts to see whether anyone joined.";
 
 const PARTICIPANT_SESSION_KEYS = [
   "user_id",
@@ -52,7 +59,7 @@ const queryCallParticipantSessions = defineTool({
     idempotentHint: true,
     openWorldHint: true,
   },
-  notFoundHint: SESSION_DERIVED_NOT_FOUND,
+  notFoundHint: ATTENDANCE_NOT_FOUND,
   compact: (raw: QueryCallParticipantSessionsResponse) => ({
     ...pick(raw, [
       "call_type",
@@ -104,7 +111,7 @@ const getParticipantSessionMetrics = defineTool({
     idempotentHint: true,
     openWorldHint: true,
   },
-  notFoundHint: SESSION_DERIVED_NOT_FOUND,
+  notFoundHint: ATTENDANCE_NOT_FOUND,
   compact: bounded,
   inputSchema: {
     ...callRef,

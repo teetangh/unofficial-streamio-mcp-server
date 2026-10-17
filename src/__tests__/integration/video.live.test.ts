@@ -226,6 +226,8 @@ suite("live: video", () => {
       session,
     });
     expect(sessions).toMatch(/session participant stats .* not found/);
+    // The hint must explain "nobody joined", not "the call never had a session".
+    expect(sessions).toMatch(/only once participants connect/);
 
     const metrics = await harness.callExpectingError("video_get_participant_session_metrics", {
       ...call,
