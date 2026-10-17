@@ -109,6 +109,8 @@ const ARGS = {
   video_get_call_report: aCall?.session ? callRef : null,
   video_query_call_stats: { limit: 2 },
   video_get_edges: {},
+  video_query_call_ring_attempts: callRef,
+  video_get_daily_digest: {},
   video_list_call_types: {},
   video_get_call_type: { name: "default" },
   app_get_settings: {},

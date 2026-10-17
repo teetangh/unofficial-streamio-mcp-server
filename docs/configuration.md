@@ -72,15 +72,15 @@ Invalid values fail fast with a message naming the variable.
 
 ## Toolsets
 
-| Toolset       | Tools | Covers                                                                                             |
-| ------------- | ----- | -------------------------------------------------------------------------------------------------- |
-| `chat`        | 54    | Channels, messages, threads, reactions, search, read state, polls, reminders, drafts               |
-| `chat-admin`  | 14    | Channel types, exports, slash commands, push templates, batch channel delete                       |
-| `users`       | 26    | User CRUD, tokens, guests, blocks, deactivation, push devices, user groups                         |
-| `moderation`  | 28    | Bans, mutes, flags, review queue, blocklists, policy checks, configs, rules, appeals               |
-| `video`       | 44    | Calls, members, participants, recording, transcription, HLS/RTMP, quality stats, closed captions   |
-| `video-admin` | 16    | Call types, SIP inbound trunks, SIP routing rules                                                  |
-| `app`         | 19    | App settings, rate limits, async tasks, roles, permissions, push providers, webhooks, ext. storage |
+| Toolset       | Tools | Covers                                                                                                                         |
+| ------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `chat`        | 54    | Channels, messages, threads, reactions, search, read state, polls, reminders, drafts                                           |
+| `chat-admin`  | 14    | Channel types, exports, slash commands, push templates, batch channel delete                                                   |
+| `users`       | 26    | User CRUD, tokens, guests, blocks, deactivation, push devices, user groups                                                     |
+| `moderation`  | 28    | Bans, mutes, flags, review queue, blocklists, policy checks, configs, rules, appeals                                           |
+| `video`       | 48    | Calls, members, participants, recording, transcription, HLS/RTMP, quality stats, attendance, ring diagnostics, closed captions |
+| `video-admin` | 16    | Call types, SIP inbound trunks, SIP routing rules                                                                              |
+| `app`         | 19    | App settings, rate limits, async tasks, roles, permissions, push providers, webhooks, ext. storage                             |
 
 ```json
 "env": { "STREAM_MCP_TOOLSETS": "chat,users,moderation" }
@@ -90,7 +90,7 @@ An unknown name fails at startup rather than being ignored.
 
 ## Safety
 
-`STREAM_MCP_READ_ONLY=true` registers only the 73 tools annotated `readOnlyHint` — nothing that writes, deletes, bans or mints a token. Use it whenever the credentials belong to a production app.
+`STREAM_MCP_READ_ONLY=true` registers only the 77 tools annotated `readOnlyHint` — nothing that writes, deletes, bans or mints a token. Use it whenever the credentials belong to a production app.
 
 Destructive tools carry `destructiveHint: true`, so clients that gate on annotations can prompt before running them.
 

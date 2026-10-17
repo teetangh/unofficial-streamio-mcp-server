@@ -201,11 +201,50 @@ suite("live: video", () => {
     expect(result._hint).toMatch(/connected/i);
   });
 
-  it("rings the call members", async () => {
-    const result = await harness.callEither("video_ring_call", { ...call, member_ids: [guest] });
-    // Ringing needs the members to be reachable; either way the request shape
-    // is what is under test.
-    expect(result.text).not.toMatch(SCHEMA_ERROR);
+  it("rings the call members and shows the ring in its ring attempts", async () => {
+    // Stream records a ring attempt server-side even with no client online,
+    // so the ring and its diagnostics can both be asserted for real.
+    const rung = await harness.call("video_ring_call", { ...call, member_ids: [guest] });
+    expect(rung.ring_id).toBeTruthy();
+
+    const attempts = await harness.call("video_query_call_ring_attempts", call);
+    const attempt = attempts.ring_attempts.find((a: any) => a.ring_id === rung.ring_id);
+    expect(attempt).toBeDefined();
+    expect(attempt.targets[guest]).toBeDefined();
+    expect(attempt.app_pk).toBeUndefined();
+  });
+
+  it("reaches participant attendance and session metrics", async () => {
+    const got = await harness.call("video_get_call", call);
+    const session: string = got.call.current_session_id;
+    expect(session).toBeTruthy();
+
+    // Attendance is derived from connected media, which a server-side test
+    // cannot produce; Stream's specific not-found proves the request shape.
+    const sessions = await harness.callExpectingError("video_query_call_participant_sessions", {
+      ...call,
+      session,
+    });
+    expect(sessions).toMatch(/session participant stats .* not found/);
+    // The hint must explain "nobody joined", not "the call never had a session".
+    expect(sessions).toMatch(/only once participants connect/);
+
+    const metrics = await harness.callExpectingError("video_get_participant_session_metrics", {
+      ...call,
+      session,
+      user: host,
+      user_session: "mcptest-user-session",
+    });
+    expect(metrics).toMatch(/no stats available for this participant session/);
+  });
+
+  it("reads the daily digest", async () => {
+    const digest = await harness.call("video_get_daily_digest", {});
+    expect(digest.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(digest.status).toBeTruthy();
+
+    const bad = await harness.callExpectingError("video_get_daily_digest", { date: "16-10-2026" });
+    expect(bad).toMatch(/YYYY-MM-DD/);
   });
 
   it("mutes a participant", async () => {

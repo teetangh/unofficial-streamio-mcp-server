@@ -2,7 +2,7 @@
 
 An [MCP](https://modelcontextprotocol.io) server that gives an AI assistant deterministic, typed access to the [Stream.io](https://getstream.io) Chat, Video, Users, Moderation and App APIs.
 
-**201 tools**, 7 MCP resources/templates, and 4 operational MCP prompts — every one explicitly schema-checked against Stream's server-side API. No generic HTTP escape hatch.
+**205 tools**, 7 MCP resources/templates, and 4 operational MCP prompts — every one explicitly schema-checked against Stream's server-side API. No generic HTTP escape hatch.
 
 > Unofficial and not affiliated with Stream.
 
@@ -64,7 +64,7 @@ Three knobs keep context token usage low when your session only needs part of th
 // Only chat + users — 80 tools
 "env": { "STREAM_MCP_TOOLSETS": "chat,users" }
 
-// Read-only: 73 tools, nothing that writes. Recommended for production apps.
+// Read-only: 77 tools, nothing that writes. Recommended for production apps.
 "env": { "STREAM_MCP_READ_ONLY": "true" }
 
 // Dynamic toolsets: starts with 2 meta-tools and enables toolsets on demand

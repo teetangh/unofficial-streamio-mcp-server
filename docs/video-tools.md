@@ -4,7 +4,7 @@
 
 Tools for calls, participants, recording, broadcasting and app configuration. Toolsets: `video`, `video-admin`, `app`.
 
-## Toolset `video` (44 tools)
+## Toolset `video` (48 tools)
 
 ### `video_create_call` — idempotent
 
@@ -503,6 +503,52 @@ Send a live closed caption segment to an active call on behalf of a speaker.
 | `user_id` | string | **yes** | User ID attributed to the caption |
 | `language` | string | no | Language code of the caption text |
 | `translated` | boolean | no | Whether the caption text is a translation of the original speech |
+
+### `video_query_call_participant_sessions` — read-only, idempotent
+
+Attendance for one call session: who joined, when they joined and left, how long they stayed and whether they published, plus session totals. Data exists only once participants have connected media; a call nobody joined returns not found.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `session` | string | **yes** | Call session ID (current_session_id or session.id from video_get_call) |
+| `filter_conditions` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
+| `limit` | integer | no | Max results to return (default: 25, max: 100) |
+| `next` | string | no | Cursor from a previous response's `next` field |
+| `prev` | string | no | Cursor from a previous response's `prev` field |
+
+### `video_get_participant_session_metrics` — read-only, idempotent
+
+Connection and media metrics for one participant's session in a call: client details, publisher/subscriber role and per-track publish metrics. Find the user_session_id with video_query_call_participant_sessions. Returns not found until the participant has published stats.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `session` | string | **yes** | Call session ID |
+| `user` | string | **yes** | User ID of the participant |
+| `user_session` | string | **yes** | The participant's user_session_id |
+| `since` | string | no | Only include metrics from this time (ISO 8601) |
+| `until` | string | no | Only include metrics up to this time (ISO 8601) |
+
+### `video_query_call_ring_attempts` — read-only, idempotent
+
+Ringing diagnostics for a call, newest first: who rang whom, the attempt's outcome and how it settled, and each target's state and push/websocket deliveries. Use it to answer "why didn't their phone ring".
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | string | **yes** | Call type: 'default', 'livestream', 'audio_room', 'development', or a custom type |
+| `call_id` | string | **yes** | Call ID |
+| `call_session_id` | string | no | Limit to one call session. Omit to read every session of the call. |
+
+### `video_get_daily_digest` — read-only, idempotent
+
+The app's video daily digest: per-call-session participant counts and broadcast rollups for one UTC day. Defaults to the previous UTC day. A day not yet processed comes back with status "pending" and retry_after (seconds) instead of data.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `date` | string | no | UTC day as YYYY-MM-DD (default: the previous UTC day) |
 
 ## Toolset `video-admin` (16 tools)
 

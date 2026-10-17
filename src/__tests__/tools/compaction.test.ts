@@ -670,3 +670,72 @@ describe("SIP credentials", () => {
     expect(out).toContain("[redacted]");
   });
 });
+
+describe("video attendance projections", () => {
+  it("keeps ring outcomes and per-target state but drops internal ids", () => {
+    const out = view("video_query_call_ring_attempts", {
+      duration: "5ms",
+      call_type: "default",
+      call_id: "c1",
+      count: 1,
+      ring_attempts: [
+        {
+          app_pk: 1720210,
+          ring_id: "r1",
+          call_type: "default",
+          call_id: "c1",
+          session_id: "s1",
+          initiated_by: "alice",
+          outcome: "ringing",
+          created_at: AT,
+          expires_at: AT,
+          settled_by: "",
+          settle_reason: "",
+          custom: {},
+          targets: { bob: { state: "pending", deliveries: [{ channel: "ws" }] } },
+        },
+      ],
+    });
+
+    expect(out.count).toBe(1);
+    expect(out.ring_attempts[0]).toMatchObject({
+      ring_id: "r1",
+      outcome: "ringing",
+      targets: { bob: { state: "pending" } },
+    });
+    expect(out.ring_attempts[0].app_pk).toBeUndefined();
+    expect(out.ring_attempts[0].call_id).toBeUndefined();
+  });
+
+  it("projects participant sessions to attendance rows and drops the session blob", () => {
+    const out = view("video_query_call_participant_sessions", {
+      duration: 3,
+      call_type: "default",
+      call_id: "c1",
+      call_session_id: "s1",
+      total_participant_sessions: 1,
+      total_participant_duration: 120,
+      session: { id: "s1", participants: [], accepted_by: {} },
+      participants_sessions: [
+        {
+          user_id: "alice",
+          user_session_id: "us1",
+          publisher_type: "webrtc",
+          roles: ["user"],
+          joined_at: AT,
+          left_at: AT,
+          duration_in_seconds: 120,
+        },
+      ],
+      next: "n1",
+    });
+
+    expect(out.session).toBeUndefined();
+    expect(out.total_participant_sessions).toBe(1);
+    expect(out.participants_sessions[0]).toMatchObject({
+      user_id: "alice",
+      duration_in_seconds: 120,
+    });
+    expect(out.next).toBe("n1");
+  });
+});
