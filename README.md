@@ -2,7 +2,7 @@
 
 An [MCP](https://modelcontextprotocol.io) server that gives an AI assistant deterministic, typed access to the [Stream.io](https://getstream.io) Chat, Video, Users, Moderation and App APIs.
 
-**200 tools**, 7 MCP resources/templates, and 4 operational MCP prompts — every one explicitly schema-checked against Stream's server-side API. No generic HTTP escape hatch.
+**201 tools**, 7 MCP resources/templates, and 4 operational MCP prompts — every one explicitly schema-checked against Stream's server-side API. No generic HTTP escape hatch.
 
 > Unofficial and not affiliated with Stream.
 
@@ -114,6 +114,8 @@ Every tool also accepts `verbose: true` to bypass response compaction and return
 - `call-quality-debug` — Diagnose a Stream Video call's quality score, session metrics, timeline events, and call-type config
 - `channel-incident-debug` — Audit a Chat channel's state, membership, pinned messages, channel-type grants, and active bans
 - `rate-limit-diagnosis` — Check consumed server-side and client-side API rate-limit buckets and suggest mitigations
+
+Prompts follow the server's configuration. Steps that need a tool this server does not expose (read-only mode, a toolset left out of `STREAM_MCP_TOOLSETS`) are dropped and the missing toolset is named. Under `STREAM_MCP_DYNAMIC_TOOLSETS` a prompt opens with the `stream_enable_toolset` call it needs. A prompt with none of its tools available is not registered.
 
 ### Response compaction
 

@@ -1173,6 +1173,12 @@ export const pollCases: ToolCase[] = [
     payload: { name: "Lunch?", user_id: "alice", options: [{ text: "Tacos" }] },
   },
   {
+    tool: "chat_create_poll",
+    args: { name: "Lunch?", user_id: "alice", id: "lunch-poll", team: "blue" },
+    path: "createPoll",
+    payload: { name: "Lunch?", user_id: "alice", id: "lunch-poll", team: "blue" },
+  },
+  {
     tool: "chat_get_poll",
     args: { poll_id: "p1" },
     path: "getPoll",
@@ -1245,6 +1251,18 @@ export const pollCases: ToolCase[] = [
       user_id: "alice",
       remind_at: new Date("2026-09-02T15:00:00Z"),
     },
+  },
+  {
+    tool: "chat_create_reminder",
+    args: { message_id: "m1", user_id: "alice", expires_at: "2026-10-01T00:00:00Z" },
+    path: "chat.createReminder",
+    payload: { message_id: "m1", user_id: "alice", expires_at: new Date("2026-10-01T00:00:00Z") },
+  },
+  {
+    tool: "chat_update_reminder",
+    args: { message_id: "m1", user_id: "alice", expires_at: "2026-10-02T00:00:00Z" },
+    path: "chat.updateReminder",
+    payload: { message_id: "m1", user_id: "alice", expires_at: new Date("2026-10-02T00:00:00Z") },
   },
   {
     tool: "chat_delete_reminder",
@@ -1579,6 +1597,26 @@ export const videoAnalyticsCases: ToolCase[] = [
     },
   },
   {
+    tool: "video_update_sip_routing_rule",
+    args: {
+      id: "rr1",
+      name: "inbound-rule",
+      trunk_ids: ["tr1"],
+      caller_configs: { id: "{{sip.from.user}}" },
+      pin_routing_configs: { pin_prompt: "Enter PIN" },
+      pin_protection_configs: { enabled: true, default_pin: "1234" },
+    },
+    path: "video.updateSIPInboundRoutingRule",
+    payload: {
+      id: "rr1",
+      name: "inbound-rule",
+      trunk_ids: ["tr1"],
+      caller_configs: { id: "{{sip.from.user}}" },
+      pin_routing_configs: { pin_prompt: "Enter PIN" },
+      pin_protection_configs: { enabled: true, default_pin: "1234" },
+    },
+  },
+  {
     tool: "video_delete_sip_routing_rule",
     args: { id: "rr1" },
     path: "video.deleteSIPInboundRoutingRule",
@@ -1623,6 +1661,28 @@ export const platformCases: ToolCase[] = [
         name: "fcm-main",
         firebase_credentials: "{}",
         disabled_at: new Date("2026-09-01T15:00:00Z"),
+      },
+    },
+  },
+  {
+    tool: "app_upsert_push_provider",
+    args: {
+      type: "apn",
+      name: "apn-cert",
+      apn_auth_type: "certificate",
+      apn_p12_cert: "BASE64",
+      apn_topic: "com.example.app",
+      apn_host: "https://api.sandbox.push.apple.com",
+    },
+    path: "upsertPushProvider",
+    payload: {
+      push_provider: {
+        type: "apn",
+        name: "apn-cert",
+        apn_auth_type: "certificate",
+        apn_p12_cert: "BASE64",
+        apn_topic: "com.example.app",
+        apn_host: "https://api.sandbox.push.apple.com",
       },
     },
   },
@@ -1677,6 +1737,28 @@ export const platformCases: ToolCase[] = [
     args: { name: "archive-s3", storage_type: "s3", bucket: "my-bucket-2" },
     path: "updateExternalStorage",
     payload: { name: "archive-s3", storage_type: "s3", bucket: "my-bucket-2" },
+  },
+  {
+    tool: "app_update_external_storage",
+    args: {
+      name: "archive-r2",
+      storage_type: "s3",
+      bucket: "my-bucket",
+      aws_s3: {
+        s3_region: "auto",
+        s3_custom_endpoint_url: "https://acct.r2.cloudflarestorage.com",
+      },
+    },
+    path: "updateExternalStorage",
+    payload: {
+      name: "archive-r2",
+      storage_type: "s3",
+      bucket: "my-bucket",
+      aws_s3: {
+        s3_region: "auto",
+        s3_custom_endpoint_url: "https://acct.r2.cloudflarestorage.com",
+      },
+    },
   },
   {
     tool: "app_delete_external_storage",

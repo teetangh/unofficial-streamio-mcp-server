@@ -2,6 +2,14 @@ import { generateKeyPairSync } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { fixtureId, hasCredentials, LiveHarness } from "./harness.js";
 
+/**
+ * A self-signed, password-less, legacy-encoded .p12 (EC key, CN "mcptest
+ * throwaway APNs certificate", valid to 2036) generated for these tests. It
+ * is not an Apple certificate and authorises nothing; Stream only parses it.
+ */
+const THROWAWAY_APN_P12 =
+  "MIIEAgIBAzCCA8AGCSqGSIb3DQEHAaCCA7EEggOtMIIDqTCCAp8GCSqGSIb3DQEHBqCCApAwggKMAgEAMIIChQYJKoZIhvcNAQcBMBwGCiqGSIb3DQEMAQYwDgQIGEYZh+SnP14CAggAgIICWIdkB/xi17KX6+/hZ+LepRrQBdTPan+dQLAmafDmDQWbUQ/mw3NgMDwQGghBDbWwNNravsucdaKabun1WpvSdhQJFcl3G3reLMEDyEJ2E5LbfpstgunFw6++bODo4V8wPjqzdG8x4abz0f88llyCG46SKk2YbU9vg3BycQtvSAzU8xRUxS6QMR67BzueU0DY1TRHRO3dNL5V5duLB5BsDbYgG/V0fzGPIHdCpsVsbRqzNhEsPe3ipY240/7T/coy9BVYZaYk7EQnDJXyWpNaMWI4Vlm78+N39r8JjYKXJ3paRmO8OgYMHYFL/u3br1c9LdT6mTSiFY45yrA469ib3/0mVfvLccfIYuGNUM4FMQUCt4pmKlW26+txZW/ioX+P53x89x/vxOzAh3dNTlUwcpX0hCh5CfS0fAPmbX3sEnBFrCI50Ee2BkKbhONyG257lLMFKBlHt6Y1WnyQdciPZDYR0ArJGThLNCHz1LMrvsi0b0hT1HVaSS3dbbE7Hr6qmZRCPf0CMbIhF9tjgUUXrDLSdFhdrOE6OouLCb43d3mSrVBAgxg7v7nKWtxM1Ckl+UpIy7JpoWJclT1N8cMr5LbyfbSI+Ua3ti7OlcNXcAwSYX1GoLkkyWwD+eWqumG+iJANoRGiXk46xdZoveEGVc6r0tHGWxkNXqMqHrJx+RePs5h8Sz6XJSloK0lmID05cEi835isuat9GayihupSGupxgMEHGjUCF70vvZOQD8MvB57gQCxAjCRmQvWWUlsoD0jhLT8Zx5od5wiXC1WcVVd+dx7mB+cuXTCCAQIGCSqGSIb3DQEHAaCB9ASB8TCB7jCB6wYLKoZIhvcNAQwKAQKggbQwgbEwHAYKKoZIhvcNAQwBAzAOBAieXKNqTGyq+wICCAAEgZC4DVjGR8rNp1w59mAIlrfNnMIoTVAHe/7pBJR2SFFR+hNXkzHRrSPtPaVbR7owKkdnikv923F92M9698GMKJzn+jJurvvgmN7kPHbr478XFeVR4JMEUU969lJeQ5QZFWUCb/GvqpIKGLYxMPXlagZ6ibJf+2ZjIo2o59rWRAv+ig42f9LytmDTIqKVYwAxH4sxJTAjBgkqhkiG9w0BCRUxFgQU+noJxC89B6q2i/8RcW3G9tF4QsEwOTAhMAkGBSsOAwIaBQAEFN9EuZ5r16GT0qeFOzyb5OOYrb/TBBD1NiCvGcFw8+GNi41QikDlAgIIAA==";
+
 const suite = hasCredentials ? describe : describe.skip;
 
 const SCHEMA_ERROR =
@@ -291,6 +299,32 @@ suite("live: channel types, call types and app settings", () => {
         name: providerName,
       });
 
+      // Certificate auth: Stream echoes apn_p12_cert back verbatim on upsert
+      // and list, so the handler must strip it even under verbose:true.
+      const certProviderName = fixtureId("pushcert");
+      const certUpsert = await harness.call("app_upsert_push_provider", {
+        type: "apn",
+        name: certProviderName,
+        apn_auth_type: "certificate",
+        apn_p12_cert: THROWAWAY_APN_P12,
+        apn_topic: "com.example.mcptest",
+        apn_host: "https://api.sandbox.push.apple.com",
+        verbose: true,
+      });
+      harness.onCleanup(async () => {
+        await harness.callEither("app_delete_push_provider", {
+          type: "apn",
+          name: certProviderName,
+        });
+      });
+      expect(certUpsert.push_provider.apn_auth_type).toBe("certificate");
+      expect(certUpsert.push_provider.apn_host).toBe("https://api.sandbox.push.apple.com");
+      expect(JSON.stringify(certUpsert)).not.toContain(THROWAWAY_APN_P12.slice(0, 40));
+      const certListed = await harness.call("app_list_push_providers", { verbose: true });
+      expect(certListed.push_providers.some((p: any) => p.name === certProviderName)).toBe(true);
+      expect(JSON.stringify(certListed)).not.toContain(THROWAWAY_APN_P12.slice(0, 40));
+      await harness.call("app_delete_push_provider", { type: "apn", name: certProviderName });
+
       const pushUser = fixtureId("pushusr");
       await harness.call("chat_upsert_users", { users: [{ id: pushUser, name: "Push User" }] });
       harness.trackUsers(pushUser);
@@ -312,6 +346,7 @@ suite("live: channel types, call types and app settings", () => {
       expect(storages.external_storages).toBeDefined();
 
       const storageName = fixtureId("extstore");
+      const storageSecret = `mcptest-s3-secret-${fixtureId("s3")}`;
       const createStorage = await harness.call("app_create_external_storage", {
         name: storageName,
         storage_type: "s3",
@@ -335,9 +370,18 @@ suite("live: channel types, call types and app settings", () => {
         name: storageName,
         storage_type: "s3",
         bucket: "mcp-nonexistent-test-bucket-2",
-        aws_s3: { s3_region: "us-east-1" },
+        // Stream rejects a custom endpoint without explicit credentials.
+        aws_s3: {
+          s3_region: "us-east-1",
+          // Stream resolves the host, so it must be real; nothing is uploaded.
+          s3_custom_endpoint_url: "https://s3.us-east-1.amazonaws.com",
+          s3_api_key: "MCPTESTACCESSKEY",
+          s3_secret: storageSecret,
+        },
       });
       expect(updateStorage.duration).toBeDefined();
+      const listedStorage = await harness.call("app_list_external_storage", { verbose: true });
+      expect(JSON.stringify(listedStorage)).not.toContain(storageSecret);
 
       await eventually(
         () => harness.call("app_list_external_storage", {}),

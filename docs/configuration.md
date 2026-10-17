@@ -79,7 +79,7 @@ Invalid values fail fast with a message naming the variable.
 | `users`       | 26    | User CRUD, tokens, guests, blocks, deactivation, push devices, user groups                         |
 | `moderation`  | 28    | Bans, mutes, flags, review queue, blocklists, policy checks, configs, rules, appeals               |
 | `video`       | 44    | Calls, members, participants, recording, transcription, HLS/RTMP, quality stats, closed captions   |
-| `video-admin` | 15    | Call types, SIP inbound trunks, SIP routing rules                                                  |
+| `video-admin` | 16    | Call types, SIP inbound trunks, SIP routing rules                                                  |
 | `app`         | 19    | App settings, rate limits, async tasks, roles, permissions, push providers, webhooks, ext. storage |
 
 ```json

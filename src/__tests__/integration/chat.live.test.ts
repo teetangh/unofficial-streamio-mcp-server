@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { getClient } from "../../clients/index.js";
 import { fixtureId, hasCredentials, LiveHarness } from "./harness.js";
 
 const suite = hasCredentials ? describe : describe.skip;
@@ -390,12 +391,15 @@ suite("live: chat", () => {
   });
 
   it("manages polls, options and votes", { timeout: 60_000 }, async () => {
+    const customPollId = fixtureId("poll");
     const created = await harness.call("chat_create_poll", {
-      name: `${fixtureId("poll")}?`,
+      id: customPollId,
+      name: `${customPollId}?`,
       user_id: alice,
       options: [{ text: "Yes" }, { text: "No" }],
     });
     const pollId: string = created.poll.id;
+    expect(pollId).toBe(customPollId);
     harness.onCleanup(async () => {
       await harness.callEither("chat_delete_poll", { poll_id: pollId, user_id: alice });
     });
@@ -462,31 +466,42 @@ suite("live: chat", () => {
     await harness.call("chat_delete_poll", { poll_id: pollId, user_id: alice });
   });
 
-  it("reaches the message reminder endpoints", async () => {
-    const createRes = await harness.callEither("chat_create_reminder", {
+  it("manages message reminders, including expires_at", async () => {
+    // Fixture setup goes through the SDK, not a tool under test: reminders
+    // are off by default and no tool sets channel config_overrides.
+    await getClient().chat.updateChannel({
+      type: channel.channel_type,
+      id: channel.channel_id,
+      data: { config_overrides: { user_message_reminders: true } },
+    });
+
+    const created = await harness.call("chat_create_reminder", {
       message_id: messageId,
       user_id: alice,
       remind_at: "2030-01-01T00:00:00Z",
+      expires_at: "2030-02-01T00:00:00Z",
     });
-    expect(createRes.text).not.toMatch(SCHEMA_ERROR);
+    expect(created.reminder.remind_at).toMatch(/^2030-01-01/);
+    expect(created.reminder.expires_at).toMatch(/^2030-02-01/);
 
-    const updateRes = await harness.callEither("chat_update_reminder", {
+    const updated = await harness.call("chat_update_reminder", {
       message_id: messageId,
       user_id: alice,
       remind_at: "2030-01-02T00:00:00Z",
+      expires_at: "2030-03-01T00:00:00Z",
     });
-    expect(updateRes.text).not.toMatch(SCHEMA_ERROR);
+    expect(updated.reminder.remind_at).toMatch(/^2030-01-02/);
+    expect(updated.reminder.expires_at).toMatch(/^2030-03-01/);
 
     const queryRes = await harness.callEither("chat_query_reminders", {
       user_id: alice,
     });
     expect(queryRes.text).not.toMatch(SCHEMA_ERROR);
 
-    const deleteRes = await harness.callEither("chat_delete_reminder", {
+    await harness.call("chat_delete_reminder", {
       message_id: messageId,
       user_id: alice,
     });
-    expect(deleteRes.text).not.toMatch(SCHEMA_ERROR);
   });
 
   it("queries and reaches draft endpoints", async () => {

@@ -437,6 +437,23 @@ suite("live: video", () => {
     const rules = await harness.call("video_list_sip_routing_rules", {});
     expect(rules.sip_inbound_routing_rules.some((r: any) => r.id === ruleId)).toBe(true);
 
+    // Update is a full replace (verified live): switch the rule to PIN routing
+    // with a default PIN and check the PIN never comes back, even verbose.
+    const defaultPin = "468024";
+    const updatedRule = await harness.call("video_update_sip_routing_rule", {
+      id: ruleId,
+      name: `${ruleName}-updated`,
+      trunk_ids: [trunkId],
+      caller_configs: { id: "{{sip.from.user}}" },
+      pin_routing_configs: { pin_prompt: "Enter your PIN" },
+      pin_protection_configs: { enabled: true, default_pin: defaultPin, required_pin_digits: 6 },
+      verbose: true,
+    });
+    expect(updatedRule.sip_inbound_routing_rule.name).toBe(`${ruleName}-updated`);
+    expect(updatedRule.sip_inbound_routing_rule.direct_routing_configs).toBeUndefined();
+    expect(JSON.stringify(updatedRule)).not.toContain(defaultPin);
+    expect(JSON.stringify(updatedRule)).toContain("[redacted]");
+
     await harness.call("video_delete_sip_routing_rule", { id: ruleId });
     await harness.call("video_delete_sip_trunk", { id: trunkId });
   });

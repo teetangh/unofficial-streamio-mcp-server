@@ -548,6 +548,60 @@ describe("push provider secret stripping", () => {
     expect(out.push_provider.apn_auth_key).toBeUndefined();
     expect(out.push_provider.firebase_credentials).toBeUndefined();
   });
+
+  // Stream echoes apn_p12_cert back on upsert (seen live), so the handler —
+  // not just the projection — must drop it, or verbose:true returns it.
+  it("never returns the .p12 certificate from app_upsert_push_provider, even verbose", async () => {
+    const client = {
+      upsertPushProvider: async () => ({ duration: "2ms", push_provider: providerWithSecrets }),
+    } as never;
+    const raw = await tool("app_upsert_push_provider").handler(
+      { type: "apn", name: "apn-prod", apn_auth_type: "certificate", apn_p12_cert: "BASE64CERT" },
+      client
+    );
+    const out = JSON.stringify(applyCompaction(tool("app_upsert_push_provider"), raw, true));
+    expect(out).toContain("apn-prod");
+    expect(out).not.toContain("BASE64CERT");
+    expect(out).not.toContain("fcm-server-key");
+  });
+});
+
+describe("moderation_query_configs", () => {
+  const config = (key: string) => ({
+    key,
+    team: "",
+    async: false,
+    created_at: AT,
+    updated_at: AT,
+    supported_video_call_harm_types: Array.from({ length: 50 }, (_, i) => `harm_${i}`),
+    available_bodyguard_profiles: Array.from({ length: 50 }, (_, i) => ({ id: `p${i}` })),
+    ai_image_label_definitions: Array.from({ length: 50 }, (_, i) => ({ key: `l${i}` })),
+    block_list_config: { enabled: true, rules: [{ name: "profanity", action: "flag" }] },
+    ai_text_config: { enabled: true, rules: [] },
+  });
+
+  it("keeps every row and drops Stream's per-config catalogue blobs", () => {
+    const raw = { duration: "1ms", configs: [config("a"), config("b")], next: "cursor" };
+    const out = view("moderation_query_configs", raw);
+
+    expect(out.configs).toEqual([
+      expect.objectContaining({ key: "a", sections: ["block_list_config", "ai_text_config"] }),
+      expect.objectContaining({ key: "b" }),
+    ]);
+    expect(out.configs[0].available_bodyguard_profiles).toBeUndefined();
+    expect(out.configs[0].supported_video_call_harm_types).toBeUndefined();
+    expect(out.next).toBe("cursor");
+  });
+
+  it("fits a full default page under the byte cap without trimming rows", () => {
+    const raw = {
+      duration: "1ms",
+      configs: Array.from({ length: 25 }, (_, i) => config(`k${i}`)),
+    };
+    const out = JSON.parse(serialize(view("moderation_query_configs", raw)));
+    expect(out.configs).toHaveLength(25);
+    expect(out._omitted_items).toBeUndefined();
+  });
 });
 
 describe("SIP credentials", () => {
@@ -582,6 +636,10 @@ describe("SIP credentials", () => {
         sip_inbound_routing_rules: [rule],
       }),
       createSIPInboundRoutingRule: async () => rule,
+      updateSIPInboundRoutingRule: async () => ({
+        duration: "1ms",
+        sip_inbound_routing_rule: rule,
+      }),
     },
   } as never;
 
@@ -594,6 +652,16 @@ describe("SIP credentials", () => {
     [
       "video_create_sip_routing_rule",
       { name: "pin", trunk_ids: ["t1"], caller_configs: { id: "x" }, pin_routing_configs: {} },
+    ],
+    [
+      "video_update_sip_routing_rule",
+      {
+        id: "r1",
+        name: "pin",
+        trunk_ids: ["t1"],
+        caller_configs: { id: "x" },
+        pin_routing_configs: {},
+      },
     ],
   ])("%s never returns the password or default PIN", async (name, args) => {
     const out = JSON.stringify(await tool(name).handler(args as never, client));

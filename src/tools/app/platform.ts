@@ -46,6 +46,12 @@ const externalStorageFields = {
       s3_region: z.string().describe("AWS region"),
       s3_api_key: z.string().optional().describe("AWS access key ID"),
       s3_secret: z.string().optional().describe("AWS secret access key"),
+      s3_custom_endpoint_url: z
+        .string()
+        .optional()
+        .describe(
+          "Custom endpoint for S3-compatible storage (e.g. MinIO, Cloudflare R2). Stream requires s3_api_key and s3_secret with it."
+        ),
     })
     .optional()
     .describe(
@@ -197,7 +203,23 @@ const upsertPushProvider = defineTool({
       .string()
       .optional()
       .describe("Firebase service account credentials JSON string"),
+    apn_auth_type: z
+      .enum(["token", "certificate"])
+      .optional()
+      .describe(
+        "APNs authentication: token (.p8 key via apn_auth_key, apn_key_id, apn_team_id) or certificate (.p12 via apn_p12_cert)"
+      ),
     apn_auth_key: z.string().optional().describe("APNs .p8 authentication key content"),
+    apn_p12_cert: z
+      .string()
+      .optional()
+      .describe(
+        "Base64 of a password-less APNs .p12 certificate, for apn_auth_type certificate. Stream rejects AES-encrypted .p12 files; with OpenSSL 3 export using `openssl pkcs12 -export -legacy`."
+      ),
+    apn_host: z
+      .string()
+      .optional()
+      .describe("Override the APNs host, e.g. https://api.sandbox.push.apple.com"),
     apn_key_id: z.string().optional().describe("APNs key ID"),
     apn_team_id: z.string().optional().describe("Apple developer team ID"),
     apn_topic: z.string().optional().describe("APNs bundle identifier / topic"),
@@ -220,7 +242,10 @@ const upsertPushProvider = defineTool({
           disabled_at: args.disabled_at ? new Date(args.disabled_at) : undefined,
           disabled_reason: args.disabled_reason,
           firebase_credentials: args.firebase_credentials,
+          apn_auth_type: args.apn_auth_type,
           apn_auth_key: args.apn_auth_key,
+          apn_p12_cert: args.apn_p12_cert,
+          apn_host: args.apn_host,
           apn_key_id: args.apn_key_id,
           apn_team_id: args.apn_team_id,
           apn_topic: args.apn_topic,

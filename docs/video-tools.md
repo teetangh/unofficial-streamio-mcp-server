@@ -504,7 +504,7 @@ Send a live closed caption segment to an active call on behalf of a speaker.
 | `language` | string | no | Language code of the caption text |
 | `translated` | boolean | no | Whether the caption text is a translation of the original speech |
 
-## Toolset `video-admin` (15 tools)
+## Toolset `video-admin` (16 tools)
 
 ### `video_get_call_report` — read-only, idempotent
 
@@ -645,6 +645,23 @@ Create an inbound SIP routing rule that routes calls from SIP trunks to Stream v
 | `pin_routing_configs` | object | no | PIN-based routing configuration for inbound SIP calls |
 | `pin_protection_configs` | object | no | PIN protection settings for inbound SIP calls |
 
+### `video_update_sip_routing_rule` — **destructive**, idempotent
+
+Replace an inbound SIP routing rule by ID. This is a full replace: any field you omit (called_numbers, caller_numbers, call_configs, direct_routing_configs, pin_routing_configs, pin_protection_configs) is cleared, so read the rule with video_list_sip_routing_rules first and send everything you want to keep. Requires at least one of direct_routing_configs or pin_routing_configs.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | **yes** | SIP routing rule ID to replace |
+| `name` | string | **yes** | Name of the SIP inbound routing rule |
+| `trunk_ids` | string[] | **yes** | SIP trunk IDs this routing rule applies to |
+| `called_numbers` | string[] | no | Dialed phone numbers matched by this rule |
+| `caller_numbers` | string[] | no | Caller phone numbers matched by this rule |
+| `caller_configs` | object | **yes** | Caller user creation and mapping configuration for routed SIP calls |
+| `call_configs` | object | no | Optional custom data configuration for the routed Stream call |
+| `direct_routing_configs` | object | no | Direct routing configuration mapping inbound SIP calls to a target call |
+| `pin_routing_configs` | object | no | PIN-based routing configuration for inbound SIP calls |
+| `pin_protection_configs` | object | no | PIN protection settings for inbound SIP calls |
+
 ### `video_delete_sip_routing_rule` — **destructive**, idempotent
 
 Permanently delete an inbound SIP routing rule by its unique ID.
@@ -748,7 +765,10 @@ Create or replace a named push notification provider configuration (APN, Firebas
 | `disabled_at` | string | no | ISO-8601 timestamp if the provider is disabled |
 | `disabled_reason` | string | no | Reason the push provider was disabled |
 | `firebase_credentials` | string | no | Firebase service account credentials JSON string |
+| `apn_auth_type` | `token` \| `certificate` | no | APNs authentication: token (.p8 key via apn_auth_key, apn_key_id, apn_team_id) or certificate (.p12 via apn_p12_cert) |
 | `apn_auth_key` | string | no | APNs .p8 authentication key content |
+| `apn_p12_cert` | string | no | Base64 of a password-less APNs .p12 certificate, for apn_auth_type certificate. Stream rejects AES-encrypted .p12 files; with OpenSSL 3 export using `openssl pkcs12 -export -legacy`. |
+| `apn_host` | string | no | Override the APNs host, e.g. https://api.sandbox.push.apple.com |
 | `apn_key_id` | string | no | APNs key ID |
 | `apn_team_id` | string | no | Apple developer team ID |
 | `apn_topic` | string | no | APNs bundle identifier / topic |
