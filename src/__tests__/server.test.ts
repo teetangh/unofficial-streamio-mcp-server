@@ -1,5 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createServer } from "../server.js";
 import { ALL_TOOLS } from "../tools/registry.js";
@@ -265,6 +266,37 @@ describe("MCP server", () => {
     await client.close();
   });
 
+  it("announces tools/list_changed only when enabling actually changes something", async () => {
+    process.env.STREAM_MCP_DYNAMIC_TOOLSETS = "true";
+    const { client } = await connect();
+    let notifications = 0;
+    client.setNotificationHandler(ToolListChangedNotificationSchema, () => {
+      notifications += 1;
+    });
+
+    const enable = async () => {
+      const result = await client.callTool({
+        name: "stream_enable_toolset",
+        arguments: { toolsets: ["app"] },
+      });
+      return JSON.parse((result.content as { text: string }[])[0].text);
+    };
+
+    const first = await enable();
+    expect(first.enabled_toolsets).toEqual(["app"]);
+    expect(first.enabled_tool_count).toBeGreaterThan(0);
+
+    const second = await enable();
+    expect(second.enabled_toolsets).toEqual([]);
+    expect(second.already_enabled_toolsets).toEqual(["app"]);
+    expect(second.enabled_tool_count).toBe(0);
+
+    // A round trip flushes any notification still in flight.
+    await client.listTools();
+    expect(notifications).toBe(1);
+    await client.close();
+  });
+
   it("exposes MCP resources, resource templates, and operational prompts", async () => {
     const { client } = await connect();
 
@@ -302,5 +334,89 @@ describe("MCP server", () => {
     expect(prompt.messages).toHaveLength(1);
     expect(JSON.stringify(prompt.messages[0].content)).toMatch(/messaging:general/);
     await client.close();
+  });
+  describe("prompts only mention tools the server exposes", () => {
+    const PROMPT_ARGS: Record<string, Record<string, string>> = {
+      "moderation-triage": {},
+      "call-quality-debug": { call_type: "default", call_id: "c1" },
+      "channel-incident-debug": { channel_type: "messaging", channel_id: "general" },
+      "rate-limit-diagnosis": {},
+    };
+    const TOOL_NAME = /\b(?:chat|video|moderation|users|app)_[a-z_]+\b/g;
+
+    async function promptTexts(client: Client) {
+      const { prompts } = await client.listPrompts();
+      const texts: Record<string, string> = {};
+      for (const { name } of prompts) {
+        const prompt = await client.getPrompt({ name, arguments: PROMPT_ARGS[name] });
+        texts[name] = prompt.messages
+          .map((message) => (message.content.type === "text" ? message.content.text : ""))
+          .join("\n");
+      }
+      return texts;
+    }
+
+    it.each([
+      ["default", {}],
+      ["read-only", { STREAM_MCP_READ_ONLY: "true" }],
+      ["chat and moderation only", { STREAM_MCP_TOOLSETS: "chat,moderation" }],
+      ["video only", { STREAM_MCP_TOOLSETS: "video" }],
+    ])("%s", async (_label, env: Record<string, string>) => {
+      Object.assign(process.env, env);
+      const { client } = await connect();
+      const registered = new Set((await client.listTools()).tools.map((tool) => tool.name));
+
+      const texts = await promptTexts(client);
+      expect(Object.keys(texts).length).toBeGreaterThan(0);
+      for (const [name, text] of Object.entries(texts)) {
+        for (const mentioned of text.match(TOOL_NAME) ?? []) {
+          expect(registered.has(mentioned), `${name} mentions ${mentioned}`).toBe(true);
+        }
+      }
+      await client.close();
+    });
+
+    it("drops moderation actions from moderation-triage in read-only mode", async () => {
+      process.env.STREAM_MCP_READ_ONLY = "true";
+      const { client } = await connect();
+      const { "moderation-triage": text } = await promptTexts(client);
+
+      expect(text).toContain("moderation_query_review_queue");
+      expect(text).not.toContain("moderation_submit_action");
+      expect(text).toMatch(/operator/);
+      await client.close();
+    });
+
+    it("skips prompts none of whose tools are exposed", async () => {
+      process.env.STREAM_MCP_TOOLSETS = "video";
+      const { client } = await connect();
+      const { prompts } = await client.listPrompts();
+
+      // video_get_call is in `video`; the rest of the call-quality tools are
+      // in `video-admin`, and the other prompts need chat/moderation/app.
+      expect(prompts.map((prompt) => prompt.name)).toEqual(["call-quality-debug"]);
+      await client.close();
+    });
+
+    it("tells the model which toolsets to enable under dynamic toolsets", async () => {
+      process.env.STREAM_MCP_DYNAMIC_TOOLSETS = "true";
+      const { client } = await connect();
+      const texts = await promptTexts(client);
+
+      expect(texts["channel-incident-debug"]).toContain(
+        'stream_enable_toolset` with `{"toolsets":["chat","chat-admin","moderation"]}`'
+      );
+      expect(texts["rate-limit-diagnosis"]).toContain('{"toolsets":["app"]}');
+
+      // Every tool a prompt names must be in a toolset its first line enables.
+      for (const [name, text] of Object.entries(texts)) {
+        const toolsets = JSON.parse(text.match(/`(\{"toolsets":[^`]+\})`/)![1]).toolsets;
+        for (const mentioned of text.match(TOOL_NAME) ?? []) {
+          const def = ALL_TOOLS.find((tool) => tool.name === mentioned);
+          expect(toolsets, `${name} mentions ${mentioned}`).toContain(def?.toolset);
+        }
+      }
+      await client.close();
+    });
   });
 });

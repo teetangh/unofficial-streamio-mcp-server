@@ -108,7 +108,11 @@ export function applyCompaction<S extends z.ZodRawShape, R>(
   return shrink(raw);
 }
 
-function isRegistrable(def: AnyToolDef, enabled: ReadonlySet<Toolset>): boolean {
+/**
+ * The single registration gate. Exported so prompts can tell which tools a
+ * given server configuration exposes without registering anything.
+ */
+export function isRegistrable(def: AnyToolDef, enabled: ReadonlySet<Toolset>): boolean {
   if (!enabled.has(def.toolset)) return false;
   if (isReadOnly() && def.annotations.readOnlyHint !== true) return false;
   return true;
@@ -227,23 +231,34 @@ export function registerTools(server: McpServer, defs: readonly AnyToolDef[]): n
       },
       async (args: { toolsets: Toolset[] }) => {
         const enabledTools: string[] = [];
+        const alreadyEnabled: Toolset[] = [];
         const unavailable: Toolset[] = [];
-        for (const toolset of args.toolsets) {
+        for (const toolset of new Set(args.toolsets)) {
           const entries = byToolset.get(toolset);
           if (!entries) {
             unavailable.push(toolset);
             continue;
           }
-          for (const entry of entries) {
+          const pending = entries.filter((entry) => !entry.handle.enabled);
+          if (pending.length === 0) {
+            alreadyEnabled.push(toolset);
+            continue;
+          }
+          for (const entry of pending) {
             entry.handle.enabled = true;
             enabledTools.push(entry.name);
           }
         }
+        // Only announce a change that happened: a repeat enable would make
+        // every client re-fetch ~200 tool schemas for nothing.
         if (server.isConnected() && enabledTools.length > 0) {
           server.sendToolListChanged();
         }
         return toolResult({
-          enabled_toolsets: args.toolsets.filter((t) => !unavailable.includes(t)),
+          enabled_toolsets: [...new Set(args.toolsets)].filter(
+            (t) => !unavailable.includes(t) && !alreadyEnabled.includes(t)
+          ),
+          ...(alreadyEnabled.length > 0 ? { already_enabled_toolsets: alreadyEnabled } : {}),
           ...(unavailable.length > 0 ? { unavailable_toolsets: unavailable } : {}),
           enabled_tool_count: enabledTools.length,
           enabled_tools: enabledTools,

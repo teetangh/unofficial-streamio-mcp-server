@@ -35,6 +35,12 @@ const createPoll = defineTool({
   inputSchema: {
     name: z.string().min(1).describe("Poll question or title"),
     user_id: z.string().min(1).describe("User ID creating the poll"),
+    id: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("Poll ID to use instead of a generated UUID, e.g. to make creation retry-safe"),
+    team: z.string().optional().describe("Team the poll belongs to (multi-tenant apps)"),
     description: z
       .string()
       .optional()
@@ -66,6 +72,8 @@ const createPoll = defineTool({
       defined({
         name: args.name,
         user_id: args.user_id,
+        id: args.id,
+        team: args.team,
         description: args.description,
         options: args.options?.map((option) => defined(option)),
         enforce_unique_vote: args.enforce_unique_vote,
@@ -354,7 +362,7 @@ const createReminder = defineTool({
   title: "Create message reminder",
   toolset: "chat",
   description:
-    "Create a reminder for a user on a specific chat message, optionally scheduled for a future timestamp. Requires Push v3 and reminders enabled on the channel type.",
+    "Create a reminder (or, without remind_at, a bookmark) for a user on a specific chat message. Reminders must be enabled on the channel (channel type setting, or channel config_overrides.user_message_reminders); Stream delivers timed notifications through Push v3.",
   annotations: {
     readOnlyHint: false,
     destructiveHint: false,
@@ -365,6 +373,9 @@ const createReminder = defineTool({
     message_id: z.string().min(1).describe("Message ID to set a reminder for"),
     user_id: z.string().min(1).describe("User ID who will receive the reminder"),
     remind_at: isoDateTime.describe("When to trigger the reminder (ISO 8601)"),
+    expires_at: isoDateTime.describe(
+      "When Stream should drop the reminder or bookmark automatically (ISO 8601)"
+    ),
   },
   handler: async (args, client) =>
     client.chat.createReminder(
@@ -372,6 +383,7 @@ const createReminder = defineTool({
         message_id: args.message_id,
         user_id: args.user_id,
         remind_at: args.remind_at === undefined ? undefined : new Date(args.remind_at),
+        expires_at: args.expires_at === undefined ? undefined : new Date(args.expires_at),
       })
     ),
 });
@@ -381,7 +393,7 @@ const updateReminder = defineTool({
   title: "Update message reminder",
   toolset: "chat",
   description:
-    "Update the scheduled trigger timestamp of an existing user reminder on a chat message. Requires Push v3 and reminders enabled on the channel type.",
+    "Update the trigger or expiry timestamp of an existing user reminder on a chat message. Reminders must be enabled on the channel (channel type setting, or channel config_overrides.user_message_reminders); Stream delivers timed notifications through Push v3.",
   annotations: {
     readOnlyHint: false,
     destructiveHint: false,
@@ -392,6 +404,9 @@ const updateReminder = defineTool({
     message_id: z.string().min(1).describe("Message ID of the reminder to update"),
     user_id: z.string().min(1).describe("User ID who owns the reminder"),
     remind_at: isoDateTime.describe("Updated reminder timestamp (ISO 8601)"),
+    expires_at: isoDateTime.describe(
+      "When Stream should drop the reminder or bookmark automatically (ISO 8601)"
+    ),
   },
   handler: async (args, client) =>
     client.chat.updateReminder(
@@ -399,6 +414,7 @@ const updateReminder = defineTool({
         message_id: args.message_id,
         user_id: args.user_id,
         remind_at: args.remind_at === undefined ? undefined : new Date(args.remind_at),
+        expires_at: args.expires_at === undefined ? undefined : new Date(args.expires_at),
       })
     ),
 });
@@ -408,7 +424,7 @@ const deleteReminder = defineTool({
   title: "Delete message reminder",
   toolset: "chat",
   description:
-    "Delete a user's reminder on a specific chat message so it will no longer fire. Requires Push v3 and reminders enabled on the channel type.",
+    "Delete a user's reminder on a specific chat message so it will no longer fire. Reminders must be enabled on the channel (channel type setting, or channel config_overrides.user_message_reminders); Stream delivers timed notifications through Push v3.",
   annotations: {
     readOnlyHint: false,
     destructiveHint: true,

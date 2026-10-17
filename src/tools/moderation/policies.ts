@@ -1,3 +1,4 @@
+import type { ConfigResponse, QueryModerationConfigsResponse } from "@stream-io/node-sdk";
 import { z } from "zod";
 import {
   defined,
@@ -7,7 +8,7 @@ import {
   prevCursor,
   sortParams,
 } from "../../schemas/common.js";
-import { bounded } from "../../utils/format.js";
+import { bounded, pick } from "../../utils/format.js";
 import { defineTool, type AnyToolDef } from "../define.js";
 
 const moderationActionEnum = z.enum([
@@ -577,19 +578,39 @@ const ruleActionSchema = z.looseObject({
     .describe("Options when action type is flag_user"),
 });
 
+const CONFIG_LIST_KEYS = ["key", "team", "async", "created_at", "updated_at"] as const;
+
+/** Policy sections a config sets — the `*_config` keys, not Stream's catalogue blobs. */
+function configSections(config: ConfigResponse): string[] {
+  return Object.entries(config)
+    .filter(([key, value]) => key.endsWith("_config") && value !== undefined && value !== null)
+    .map(([key]) => key);
+}
+
 const queryModerationConfigs = defineTool({
   name: "moderation_query_configs",
   title: "Query moderation configs",
   toolset: "moderation",
   description:
-    "List moderation policy configurations with optional filtering, sorting and cursor pagination.",
+    "List moderation policy configurations with optional filtering, sorting and cursor pagination. Each row shows the config's key, team, timestamps and which policy sections are set; read one config's sections with moderation_get_config.",
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
     idempotentHint: true,
     openWorldHint: true,
   },
-  compact: false,
+  // Every config carries Stream's catalogue blobs (bodyguard profiles, image
+  // label definitions, harm types). Returned raw, 25 rows overran the byte
+  // cap, rows were trimmed, and `next` then skipped past them.
+  compact: (raw: QueryModerationConfigsResponse) => ({
+    configs: (raw.configs ?? []).map((config) => ({
+      ...pick(config, CONFIG_LIST_KEYS),
+      sections: configSections(config),
+    })),
+    next: raw.next,
+    prev: raw.prev,
+    _hint: "Use moderation_get_config for one config's full sections.",
+  }),
   inputSchema: {
     filter: filterConditions,
     sort: sortParams,

@@ -423,6 +423,8 @@ Create a poll that can be attached to a chat message, with voting options, visib
 | --- | --- | --- | --- |
 | `name` | string | **yes** | Poll question or title |
 | `user_id` | string | **yes** | User ID creating the poll |
+| `id` | string | no | Poll ID to use instead of a generated UUID, e.g. to make creation retry-safe |
+| `team` | string | no | Team the poll belongs to (multi-tenant apps) |
 | `description` | string | no | Additional description or instructions for the poll |
 | `options` | object[] | no | Initial voting options for the poll |
 | `enforce_unique_vote` | boolean | no | Whether each user is restricted to a single vote |
@@ -535,27 +537,29 @@ Search and filter votes cast on a poll with sorting and cursor pagination.
 
 ### `chat_create_reminder`
 
-Create a reminder for a user on a specific chat message, optionally scheduled for a future timestamp. Requires Push v3 and reminders enabled on the channel type.
+Create a reminder (or, without remind_at, a bookmark) for a user on a specific chat message. Reminders must be enabled on the channel (channel type setting, or channel config_overrides.user_message_reminders); Stream delivers timed notifications through Push v3.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `message_id` | string | **yes** | Message ID to set a reminder for |
 | `user_id` | string | **yes** | User ID who will receive the reminder |
 | `remind_at` | string | no | When to trigger the reminder (ISO 8601) |
+| `expires_at` | string | no | When Stream should drop the reminder or bookmark automatically (ISO 8601) |
 
 ### `chat_update_reminder` — idempotent
 
-Update the scheduled trigger timestamp of an existing user reminder on a chat message. Requires Push v3 and reminders enabled on the channel type.
+Update the trigger or expiry timestamp of an existing user reminder on a chat message. Reminders must be enabled on the channel (channel type setting, or channel config_overrides.user_message_reminders); Stream delivers timed notifications through Push v3.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `message_id` | string | **yes** | Message ID of the reminder to update |
 | `user_id` | string | **yes** | User ID who owns the reminder |
 | `remind_at` | string | no | Updated reminder timestamp (ISO 8601) |
+| `expires_at` | string | no | When Stream should drop the reminder or bookmark automatically (ISO 8601) |
 
 ### `chat_delete_reminder` — **destructive**, idempotent
 
-Delete a user's reminder on a specific chat message so it will no longer fire. Requires Push v3 and reminders enabled on the channel type.
+Delete a user's reminder on a specific chat message so it will no longer fire. Reminders must be enabled on the channel (channel type setting, or channel config_overrides.user_message_reminders); Stream delivers timed notifications through Push v3.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -1216,7 +1220,7 @@ Delete a custom blocklist. Stream's built-in lists cannot be deleted.
 
 ### `moderation_query_configs` — read-only, idempotent
 
-List moderation policy configurations with optional filtering, sorting and cursor pagination.
+List moderation policy configurations with optional filtering, sorting and cursor pagination. Each row shows the config's key, team, timestamps and which policy sections are set; read one config's sections with moderation_get_config.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |

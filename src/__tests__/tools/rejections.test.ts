@@ -79,6 +79,17 @@ const REJECTIONS: [string, Record<string, unknown>, RegExp][] = [
     { name: "inbound", trunk_ids: ["tr1"], caller_configs: { id: "{{sip.from.user}}" } },
     /`direct_routing_configs` or `pin_routing_configs`/,
   ],
+  [
+    // Stream enforces the same rule on update (verified live).
+    "video_update_sip_routing_rule",
+    {
+      id: "rr1",
+      name: "inbound",
+      trunk_ids: ["tr1"],
+      caller_configs: { id: "{{sip.from.user}}" },
+    },
+    /`direct_routing_configs` or `pin_routing_configs`/,
+  ],
 ];
 
 describe("tool input rejections", () => {
