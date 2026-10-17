@@ -3,6 +3,7 @@ import { platformTools } from "./app/platform.js";
 import { chatAdminTools } from "./chat/admin.js";
 import { channelTools } from "./chat/channels.js";
 import { commandAndBatchTools } from "./chat/commands.js";
+import { chatDataTools } from "./chat/data.js";
 import { messageTools } from "./chat/messages.js";
 import { pollTools } from "./chat/polls.js";
 import type { AnyToolDef } from "./define.js";
@@ -34,6 +35,7 @@ export const ALL_TOOLS: readonly AnyToolDef[] = [
   ...pollTools,
   ...chatAdminTools,
   ...commandAndBatchTools,
+  ...chatDataTools,
   ...moderationTools,
   ...blocklistTools,
   ...moderationPolicyTools,

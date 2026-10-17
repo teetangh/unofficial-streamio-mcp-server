@@ -634,7 +634,7 @@ Query the version history of edited messages across channels using filter condit
 | `next` | string | no | Cursor from a previous response's `next` field |
 | `prev` | string | no | Cursor from a previous response's `prev` field |
 
-## Toolset `chat-admin` (14 tools)
+## Toolset `chat-admin` (22 tools)
 
 ### `chat_list_channel_types` — read-only, idempotent
 
@@ -771,6 +771,76 @@ Delete multiple chat channels asynchronously in a single batch operation by thei
 | --- | --- | --- | --- |
 | `cids` | string[] | **yes** | Channel CIDs to delete, e.g. ['messaging:general'] (max 100) |
 | `hard_delete` | boolean | no | Permanently remove channels and all their messages |
+
+### `chat_get_retention_policies` — read-only, idempotent
+
+List the app's chat data-retention policies (old-messages, inactive-channels) with their max_age_hours and when each was enabled. An empty list means nothing is auto-deleted.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| _(none)_ | | | |
+
+### `chat_get_retention_policy_runs` — read-only, idempotent
+
+History of retention cleanup runs: per day and policy, how many messages and channels were hard-deleted. Use it to confirm what a retention policy actually removed.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `filter_conditions` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
+| `sort` | object[] | no | Sort parameters, applied in order |
+| `limit` | integer | no | Max results to return (default: 25, max: 100) |
+| `next` | string | no | Cursor from a previous response's `next` field |
+| `prev` | string | no | Cursor from a previous response's `prev` field |
+
+### `chat_set_retention_policy` — **destructive**, idempotent
+
+Enable or update a chat retention policy. Matching data is HARD-DELETED and cannot be recovered; cleanup starts after a 24-hour grace period and runs in the background. Stream emails every admin on the team when a policy is enabled or updated. Setting an existing policy again replaces its max_age_hours.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `policy` | `old-messages` \| `inactive-channels` | **yes** | old-messages deletes messages older than max_age_hours; inactive-channels deletes channels whose latest of created_at, updated_at and last_message_at is older than max_age_hours |
+| `max_age_hours` | integer | **yes** | Delete data older than this many hours. Stream accepts 24 to 87600 (10 years). |
+
+### `chat_delete_retention_policy` — **destructive**, idempotent
+
+Turn off a chat retention policy so Stream stops auto-deleting that kind of data. Data already deleted is not restored. Succeeds even when the policy is not set.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `policy` | `old-messages` \| `inactive-channels` | **yes** | old-messages deletes messages older than max_age_hours; inactive-channels deletes channels whose latest of created_at, updated_at and last_message_at is older than max_age_hours |
+
+### `chat_create_import_url`
+
+Step 1 of a chat data import: get a short-lived presigned upload_url to PUT the import JSON file to, and the path to pass to chat_create_import once it is uploaded. Creates nothing in the app by itself.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `filename` | string | no | Name for the uploaded file, e.g. import.json |
+
+### `chat_create_import` — **destructive**
+
+Step 2 of a chat data import: start importing an uploaded file (path from chat_create_import_url, max 300 MB). insert skips items that already exist. upsert is NOT a partial update: for existing items, fields missing from the file are reset to their defaults and custom data is replaced (blocked users are merged). Imports never delete data. Runs asynchronously — follow it with chat_get_import; Stream advises allowing up to 7 days for a full migration.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `path` | string | **yes** | The path returned by chat_create_import_url |
+| `mode` | `insert` \| `upsert` | **yes** | insert: skip existing items. upsert: replace existing items (destructive). |
+
+### `chat_list_imports` — read-only, idempotent
+
+List the app's chat data imports with their state and state history.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| _(none)_ | | | |
+
+### `chat_get_import` — read-only, idempotent
+
+Get one chat data import's state and its state-transition history — use it to follow an import started with chat_create_import.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | **yes** | Import task ID |
 
 ## Toolset `users` (26 tools)
 
