@@ -30,12 +30,15 @@ async function eventually<T>(
   done: (value: T) => boolean,
   label: string
 ): Promise<T> {
+  // A deadline, not an attempt count: from a CI runner a channel-type update
+  // took over 40 s to become visible, which 12 fixed attempts did not cover.
+  const deadline = Date.now() + 45_000;
   let last: T | undefined;
-  for (let attempt = 0; attempt < 12; attempt += 1) {
+  do {
     last = await read();
     if (done(last)) return last;
     await settle();
-  }
+  } while (Date.now() < deadline);
   throw new Error(`${label} never converged: ${JSON.stringify(last).slice(0, 300)}`);
 }
 
@@ -52,7 +55,7 @@ suite("live: channel types, call types and app settings", () => {
     await harness.teardown();
   }, 60_000);
 
-  it("creates, updates and deletes a channel type", { timeout: 60_000 }, async () => {
+  it("creates, updates and deletes a channel type", { timeout: 120_000 }, async () => {
     const created = await harness.call("chat_create_channel_type", {
       name: channelTypeName,
       automod: "disabled",
@@ -89,7 +92,7 @@ suite("live: channel types, call types and app settings", () => {
     expect(deleted.duration).toBeDefined();
   });
 
-  it("creates, updates and deletes a call type", { timeout: 60_000 }, async () => {
+  it("creates, updates and deletes a call type", { timeout: 120_000 }, async () => {
     const created = await harness.call("video_create_call_type", {
       name: callTypeName,
       settings: {
@@ -125,7 +128,7 @@ suite("live: channel types, call types and app settings", () => {
 
   // Three sequential round trips to Stream; the 5s default is not enough
   // reliably, and a timeout here fails the whole live gate on main.
-  it("round-trips an app setting without changing it", { timeout: 60_000 }, async () => {
+  it("round-trips an app setting without changing it", { timeout: 120_000 }, async () => {
     const before = await harness.call("app_get_settings");
     const current = before.app.async_url_enrich_enabled;
     // Coercing an absent value to false would make the round-trip assert
@@ -191,7 +194,8 @@ suite("live: channel types, call types and app settings", () => {
 
   it(
     "lists permissions, gets a permission, and manages custom roles",
-    { timeout: 30_000 },
+    // Two eventually() polls of up to 45 s each.
+    { timeout: 120_000 },
     async () => {
       const perms = await harness.call("app_list_permissions", {});
       expect(perms.permissions.length).toBeGreaterThan(0);
@@ -215,8 +219,14 @@ suite("live: channel types, call types and app settings", () => {
         "role creation"
       );
 
-      const deletedRole = await harness.call("app_delete_role", { name: roleName });
-      expect(deletedRole.duration).toBeDefined();
+      // Listing can see the role before the delete path does (seen locally and
+      // in CI: "role ... does not exist" straight after the list found it).
+      const deletedRole = await eventually(
+        () => harness.callEither("app_delete_role", { name: roleName }),
+        (r) => r.ok || !/does not exist/.test(r.text),
+        "role deletion"
+      );
+      expect(deletedRole.ok, deletedRole.text).toBe(true);
     }
   );
 
