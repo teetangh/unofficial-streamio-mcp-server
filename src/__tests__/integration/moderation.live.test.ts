@@ -521,10 +521,20 @@ suite("live: moderation, users and app", () => {
       id: runId,
       only_failed: true,
     });
-    for (const row of failedOnly.results ?? []) expect(row.passed).not.toBe(true);
+    // Every row here ends as provider_error (passed: null), so the filter must
+    // return all of them — a non-empty, exact count, not a vacuous pass.
+    const notPassed = finished.results.filter((row: any) => row.passed !== true);
+    expect(notPassed.length).toBeGreaterThan(0);
+    expect(failedOnly.results).toHaveLength(notPassed.length);
+    for (const row of failedOnly.results) expect(row.passed).not.toBe(true);
 
     const got = await harness.call("moderation_get_policy_test_set", { id: setId });
     expect(got.set.rows).toHaveLength(2);
+    expect(got.set).toMatchObject({ mode: "check", config_key: configKey });
+    expect(got.set.rows).toEqual([
+      expect.objectContaining({ text: "hello there, nice day", recommended_action: "keep" }),
+      expect.objectContaining({ text: "you are an idiot", recommended_action: "flag" }),
+    ]);
     expect(got.recent_runs.some((run: any) => run.id === runId)).toBe(true);
 
     await harness.call("moderation_delete_policy_test_set", { id: setId });
