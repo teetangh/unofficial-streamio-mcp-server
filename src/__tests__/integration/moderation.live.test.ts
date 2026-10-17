@@ -180,7 +180,8 @@ suite("live: moderation, users and app", () => {
     expect(result.user.role).toBe("guest");
   });
 
-  it("reads app settings, rate limits and channel/call types", async () => {
+  // GetApp alone has taken several seconds from a CI runner.
+  it("reads app settings, rate limits and channel/call types", { timeout: 30_000 }, async () => {
     const app = await harness.call("app_get_settings");
     expect(app.app.name).toBeDefined();
 

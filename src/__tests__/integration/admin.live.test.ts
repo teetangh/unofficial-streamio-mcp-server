@@ -30,12 +30,15 @@ async function eventually<T>(
   done: (value: T) => boolean,
   label: string
 ): Promise<T> {
+  // A deadline, not an attempt count: from a CI runner a channel-type update
+  // took over 40 s to become visible, which 12 fixed attempts did not cover.
+  const deadline = Date.now() + 45_000;
   let last: T | undefined;
-  for (let attempt = 0; attempt < 12; attempt += 1) {
+  do {
     last = await read();
     if (done(last)) return last;
     await settle();
-  }
+  } while (Date.now() < deadline);
   throw new Error(`${label} never converged: ${JSON.stringify(last).slice(0, 300)}`);
 }
 
@@ -215,8 +218,14 @@ suite("live: channel types, call types and app settings", () => {
         "role creation"
       );
 
-      const deletedRole = await harness.call("app_delete_role", { name: roleName });
-      expect(deletedRole.duration).toBeDefined();
+      // Listing can see the role before the delete path does (seen locally and
+      // in CI: "role ... does not exist" straight after the list found it).
+      const deletedRole = await eventually(
+        () => harness.callEither("app_delete_role", { name: roleName }),
+        (r) => r.ok || !/does not exist/.test(r.text),
+        "role deletion"
+      );
+      expect(deletedRole.ok, deletedRole.text).toBe(true);
     }
   );
 
