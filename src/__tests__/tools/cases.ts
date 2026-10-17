@@ -1778,6 +1778,57 @@ export const chatDataCases: ToolCase[] = [
   },
 ];
 
+export const webhookAndUsageCases: ToolCase[] = [
+  {
+    tool: "app_check_sqs",
+    args: { sqs_url: "https://sqs.us-east-1.amazonaws.com/1/q", sqs_key: "AK", sqs_secret: "S" },
+    path: "checkSQS",
+    payload: { sqs_url: "https://sqs.us-east-1.amazonaws.com/1/q", sqs_key: "AK", sqs_secret: "S" },
+    assert: (call) => {
+      if (call.path !== "checkSQS")
+        throw new Error("an explicit target must not read app settings");
+    },
+  },
+  {
+    // No target: the saved queue (here on an event hook) is checked.
+    tool: "app_check_sqs",
+    args: {},
+    path: "checkSQS",
+    payload: {},
+    overrides: { getApp: { app: { sqs_url: "", event_hooks: [{ sqs_queue_url: "https://q" }] } } },
+  },
+  {
+    tool: "app_check_sns",
+    args: { sns_topic_arn: "arn:aws:sns:us-east-1:1:t" },
+    path: "checkSNS",
+    payload: { sns_topic_arn: "arn:aws:sns:us-east-1:1:t" },
+  },
+  {
+    tool: "app_check_gcp_pubsub",
+    args: { gcp_pubsub_topic: "projects/p/topics/t" },
+    path: "checkGCPPubSub",
+    payload: { gcp_pubsub_topic: "projects/p/topics/t" },
+  },
+  {
+    tool: "app_query_team_usage_stats",
+    args: { month: "2026-09", limit: 10 },
+    path: "chat.queryTeamUsageStats",
+    payload: { month: "2026-09", limit: 10 },
+  },
+  {
+    tool: "moderation_query_future_channel_bans",
+    args: { user_id: "owner", include_total: true },
+    path: "chat.queryFutureChannelBans",
+    payload: { payload: { user_id: "owner", include_total: true } },
+  },
+  {
+    tool: "moderation_ban_user",
+    args: { target_user_id: "troll", banned_by_id: "owner", ban_from_future_channels: true },
+    path: "moderation.ban",
+    payload: { target_user_id: "troll", banned_by_id: "owner", ban_from_future_channels: true },
+  },
+];
+
 export const platformCases: ToolCase[] = [
   { tool: "app_list_roles", args: {}, path: "listRoles", payload: undefined },
   {
@@ -1949,4 +2000,5 @@ export const ALL_CASES: ToolCase[] = [
   ...attendanceCases,
   ...appCases,
   ...platformCases,
+  ...webhookAndUsageCases,
 ];

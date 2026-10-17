@@ -1105,7 +1105,7 @@ Reactivate multiple previously deactivated users asynchronously in a single batc
 | `restore_channels` | boolean | no | Restore channels that were marked deleted on deactivation |
 | `created_by_id` | string | no | ID of the user performing the reactivation |
 
-## Toolset `moderation` (35 tools)
+## Toolset `moderation` (36 tools)
 
 ### `moderation_ban_user` — **destructive**, idempotent
 
@@ -1121,6 +1121,7 @@ Ban a user app-wide, or from one channel when `channel_cid` is given. A shadow b
 | `shadow` | boolean | no | Shadow ban — the user can still post, but only they see their messages |
 | `ip_ban` | boolean | no | Also ban the user's IP address |
 | `delete_messages` | `soft` \| `pruning` \| `hard` | no | Also delete the user's existing messages |
+| `ban_from_future_channels` | boolean | no | Also ban the user from every channel banned_by_id creates from now on. moderation_unban_user does not lift this part; see moderation_query_future_channel_bans. |
 
 ### `moderation_unban_user` — idempotent
 
@@ -1154,6 +1155,19 @@ List current bans. Common filters: {user_id: {$eq: 'alice'}}, {channel_cid: {$eq
 | `filter_conditions` | object | no | Filter object using Stream query syntax. Operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $exists, $and, $or, $autocomplete, $contains. |
 | `sort` | object[] | no | Sort parameters, applied in order |
 | `limit` | integer | no | Max results to return (default: 25, max: 100) |
+
+### `moderation_query_future_channel_bans` — read-only, idempotent
+
+List future-channel bans: a user banned with ban_from_future_channels is blocked from every channel the banning user creates later. Pass user_id (the banning user) to see whom they banned, or target_user_id to see who banned that user — one is required. moderation_unban_user does NOT lift a future-channel ban (verified). Stream's review-queue unban action has an option for it: moderation_submit_action with payload {unban: {remove_future_channels_ban: true}}.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `user_id` | string | no | The banning user: list whom they banned |
+| `target_user_id` | string | no | The banned user: list who banned them |
+| `exclude_expired_bans` | boolean | no | Leave out bans that have expired |
+| `include_total` | boolean | no | Also return the total number of matching bans (capped at 100000) |
+| `limit` | integer | no | Bans to return |
+| `offset` | integer | no | Bans to skip |
 
 ### `moderation_mute_user` — **destructive**, idempotent
 

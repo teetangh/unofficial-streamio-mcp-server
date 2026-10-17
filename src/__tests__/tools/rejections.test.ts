@@ -79,6 +79,12 @@ const REJECTIONS: [string, Record<string, unknown>, RegExp][] = [
     { name: "inbound", trunk_ids: ["tr1"], caller_configs: { id: "{{sip.from.user}}" } },
     /`direct_routing_configs` or `pin_routing_configs`/,
   ],
+  ["app_query_team_usage_stats", { month: "2026-09", start_date: "2026-09-01" }, /not both/],
+  [
+    "moderation_query_future_channel_bans",
+    {},
+    /`user_id` \(the banning user\) or `target_user_id`/,
+  ],
   ["moderation_create_policy_test_set", { name: "neither" }, /exactly one of `rows` or `seed`/],
   [
     "moderation_create_policy_test_set",
@@ -103,5 +109,17 @@ describe("tool input rejections", () => {
     const mock = mockClient();
     await expect(callTool(tool, args, mock.client)).rejects.toThrow(pattern);
     expect(mock.calls.filter((call) => call.path !== "video.call")).toHaveLength(0);
+  });
+});
+
+describe("webhook target checks", () => {
+  // Seen live: with no target and nothing saved, Stream answers status "ok".
+  it.each([
+    ["app_check_sqs", { app: { sqs_url: "", event_hooks: [] } }],
+    ["app_check_sns", { app: { sns_topic_arn: "", event_hooks: [{ sns_topic_arn: "" }] } }],
+  ])("%s refuses instead of reporting a false ok when nothing is saved", async (tool, app) => {
+    const mock = mockClient({ getApp: app });
+    await expect(callTool(tool, {}, mock.client)).rejects.toThrow(/nothing to check/);
+    expect(mock.calls.map((call) => call.path)).toEqual(["getApp"]);
   });
 });

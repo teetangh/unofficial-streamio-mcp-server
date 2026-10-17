@@ -84,7 +84,7 @@ Request-side defaults matter as much: `chat_query_channels` sends `message_limit
 
 - `registry.test.ts` — table checks over `ALL_TOOLS`: unique names, valid prefixes and toolsets, annotations present and consistent, no tool declares `verbose` itself.
 - `server.test.ts` — a real `Client` over `InMemoryTransport`. This is the only layer that exercises zod validation, so schema regressions surface here.
-- `tools/payloads.test.ts` — every one of the 220 tools is invoked against a recording mock `StreamClient` and asserted against the **exact** payload it should send. A coverage test fails if a new tool has no case.
+- `tools/payloads.test.ts` — every one of the 225 tools is invoked against a recording mock `StreamClient` and asserted against the **exact** payload it should send. A coverage test fails if a new tool has no case.
 - `tools/rejections.test.ts` — the cross-field rules, asserting no SDK call is made.
 - `tools/compaction.test.ts` — every bespoke `compact` projection, driven through `applyCompaction` so the `verbose` and default-`shrink` branches are covered too.
 - `integration/*.live.test.ts` — real Stream API, namespaced `mcptest-*` fixtures, teardown in `afterAll`. Skipped without credentials.

@@ -1,3 +1,4 @@
+import type { QueryFutureChannelBansResponse } from "@stream-io/node-sdk";
 import { z } from "zod";
 import {
   customData,
@@ -8,7 +9,7 @@ import {
   prevCursor,
   sortParams,
 } from "../../schemas/common.js";
-import { bounded } from "../../utils/format.js";
+import { bounded, pick, userRef } from "../../utils/format.js";
 import { ToolInputError } from "../../utils/errors.js";
 import { defineTool, type AnyToolDef } from "../define.js";
 
@@ -83,6 +84,12 @@ const banUser = defineTool({
       .enum(["soft", "pruning", "hard"])
       .optional()
       .describe("Also delete the user's existing messages"),
+    ban_from_future_channels: z
+      .boolean()
+      .optional()
+      .describe(
+        "Also ban the user from every channel banned_by_id creates from now on. moderation_unban_user does not lift this part; see moderation_query_future_channel_bans."
+      ),
   },
   handler: async (args, client) =>
     client.moderation.ban(
@@ -95,6 +102,7 @@ const banUser = defineTool({
         shadow: args.shadow,
         ip_ban: args.ip_ban,
         delete_messages: args.delete_messages,
+        ban_from_future_channels: args.ban_from_future_channels,
       })
     ),
 });
@@ -198,6 +206,54 @@ const queryBannedUsers = defineTool({
         limit: args.limit ?? 25,
       }),
     }),
+});
+
+const queryFutureChannelBans = defineTool({
+  name: "moderation_query_future_channel_bans",
+  title: "Query future channel bans",
+  toolset: "moderation",
+  description:
+    "List future-channel bans: a user banned with ban_from_future_channels is blocked from every channel the banning user creates later. Pass user_id (the banning user) to see whom they banned, or target_user_id to see who banned that user — one is required. moderation_unban_user does NOT lift a future-channel ban (verified). Stream's review-queue unban action has an option for it: moderation_submit_action with payload {unban: {remove_future_channels_ban: true}}.",
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
+  compact: (raw: QueryFutureChannelBansResponse) => ({
+    bans: (raw.bans ?? []).map((ban) => ({
+      ...pick(ban, ["created_at", "expires", "reason", "shadow"]),
+      user: userRef(ban.user),
+      banned_by: userRef(ban.banned_by),
+    })),
+    total: raw.total,
+  }),
+  inputSchema: {
+    user_id: z.string().min(1).optional().describe("The banning user: list whom they banned"),
+    target_user_id: z.string().min(1).optional().describe("The banned user: list who banned them"),
+    exclude_expired_bans: z.boolean().optional().describe("Leave out bans that have expired"),
+    include_total: z
+      .boolean()
+      .optional()
+      .describe("Also return the total number of matching bans (capped at 100000)"),
+    limit: z.int().min(1).max(100).optional().describe("Bans to return"),
+    offset: z.int().min(0).optional().describe("Bans to skip"),
+  },
+  handler: async (args, client) => {
+    if (!args.user_id && !args.target_user_id) {
+      throw new ToolInputError("Pass `user_id` (the banning user) or `target_user_id`.");
+    }
+    return client.chat.queryFutureChannelBans({
+      payload: defined({
+        user_id: args.user_id,
+        target_user_id: args.target_user_id,
+        exclude_expired_bans: args.exclude_expired_bans,
+        include_total: args.include_total,
+        limit: args.limit,
+        offset: args.offset,
+      }),
+    });
+  },
 });
 
 const muteUser = defineTool({
@@ -465,6 +521,7 @@ export const moderationTools: AnyToolDef[] = [
   unbanUser,
   flagContent,
   queryBannedUsers,
+  queryFutureChannelBans,
   muteUser,
   unmuteUser,
   queryFlags,
