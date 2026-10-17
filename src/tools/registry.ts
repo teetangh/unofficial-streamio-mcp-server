@@ -14,6 +14,7 @@ import { tokenTools } from "./users/tokens.js";
 import { userTools } from "./users/users.js";
 import { videoAdminTools } from "./video/admin.js";
 import { videoAnalyticsAndSipTools } from "./video/analytics.js";
+import { attendanceTools } from "./video/attendance.js";
 import { callTools } from "./video/calls.js";
 import { mediaTools } from "./video/media.js";
 import { participantTools } from "./video/participants.js";
@@ -40,6 +41,7 @@ export const ALL_TOOLS: readonly AnyToolDef[] = [
   ...mediaTools,
   ...videoAdminTools,
   ...videoAnalyticsAndSipTools,
+  ...attendanceTools,
   ...appTools,
   ...platformTools,
 ];

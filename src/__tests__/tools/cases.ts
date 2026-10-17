@@ -1624,6 +1624,53 @@ export const videoAnalyticsCases: ToolCase[] = [
   },
 ];
 
+export const attendanceCases: ToolCase[] = [
+  {
+    // The SDK takes `type`/`id` here, not `call_type`/`call_id`.
+    tool: "video_query_call_participant_sessions",
+    args: { ...CALL, session: "s1" },
+    path: "video.queryCallParticipantSessions",
+    payload: { type: "default", id: "standup", session: "s1", limit: 25 },
+  },
+  {
+    tool: "video_get_participant_session_metrics",
+    args: {
+      ...CALL,
+      session: "s1",
+      user: "alice",
+      user_session: "us1",
+      since: "2026-10-01T00:00:00Z",
+    },
+    path: "video.getCallParticipantSessionMetrics",
+    payload: {
+      type: "default",
+      id: "standup",
+      session: "s1",
+      user: "alice",
+      user_session: "us1",
+      since: new Date("2026-10-01T00:00:00Z"),
+    },
+  },
+  {
+    tool: "video_query_call_ring_attempts",
+    args: { ...CALL, call_session_id: "s1" },
+    path: "video.queryCallRingAttempts",
+    payload: { type: "default", id: "standup", call_session_id: "s1" },
+  },
+  {
+    tool: "video_get_daily_digest",
+    args: {},
+    path: "video.getDailyDigest",
+    payload: {},
+  },
+  {
+    tool: "video_get_daily_digest",
+    args: { date: "2026-10-16" },
+    path: "video.getDailyDigest",
+    payload: { date: "2026-10-16" },
+  },
+];
+
 export const platformCases: ToolCase[] = [
   { tool: "app_list_roles", args: {}, path: "listRoles", payload: undefined },
   {
@@ -1790,6 +1837,7 @@ export const ALL_CASES: ToolCase[] = [
   ...mediaCases,
   ...videoAdminCases,
   ...videoAnalyticsCases,
+  ...attendanceCases,
   ...appCases,
   ...platformCases,
 ];
