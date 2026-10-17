@@ -1050,13 +1050,12 @@ Ban a user app-wide, or from one channel when `channel_cid` is given. A shadow b
 
 ### `moderation_unban_user` — idempotent
 
-Lift a ban. Pass the same `channel_cid` that was used to ban, or omit it to lift an app-wide ban. `banned_by_id` selects which ban to lift when a user was banned by several moderators; `unbanned_by_id` records who is lifting it.
+Lift a ban. Pass the same `channel_cid` that was used to ban, or omit it to lift an app-wide ban. `banned_by_id` selects which ban to lift when a user was banned by several moderators.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `target_user_id` | string | **yes** | User ID to unban |
 | `channel_cid` | string | no | Channel the ban was applied to. Omit for an app-wide unban. |
-| `unbanned_by_id` | string | no | Moderator performing the unban |
 | `banned_by_id` | string | no | Moderator who created the ban being lifted. Only needed to disambiguate between bans by different moderators. |
 
 ### `moderation_flag_message`
@@ -1115,7 +1114,7 @@ List moderation flags. Common filters: {entity_type: {$eq: 'stream:chat:v1:messa
 
 ### `moderation_query_review_queue` — read-only, idempotent
 
-List items awaiting moderator review. Common filters: {entity_type: {$eq: 'stream:chat:v1:message'}}, {review_queue_item_status: {$eq: 'pending'}}. Act on an item with moderation_submit_action.
+List items awaiting moderator review. Common filters: {entity_type: {$eq: 'stream:chat:v1:message'}}, {status: {$in: ['pending', 'flagged']}} for items still awaiting review (Stream accepts unknown filter fields silently, so a misspelt field returns an empty list rather than an error). Act on an item with moderation_submit_action.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -1260,6 +1259,9 @@ Create or replace a moderation policy configuration for text, image, video, audi
 | `flood_config` | object | no | Flood and rate-limiting moderation configuration |
 | `google_vision_config` | object | no | Google Vision image moderation configuration |
 | `velocity_filter_config` | object | no | Velocity spam filter configuration |
+| `intent_config` | object | no | Intent classification configuration |
+| `rule_builder_config` | object | no | Rule builder configuration (rules evaluated against this config) |
+| `video_call_rule_config` | object | no | Video call moderation rule configuration |
 
 ### `moderation_delete_config` — **destructive**, idempotent
 
