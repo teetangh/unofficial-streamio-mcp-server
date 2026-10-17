@@ -451,7 +451,7 @@ suite("live: moderation, users and app", () => {
     expect(none.count).toBe(0);
   });
 
-  it("creates, runs, reads and deletes a policy test set", { timeout: 90_000 }, async () => {
+  it("creates, runs, reads and deletes a policy test set", { timeout: 180_000 }, async () => {
     // A dedicated check-mode policy: the scratch app has no AI provider, so
     // rows finish as provider_error and nothing is billed or flagged — but
     // the run still reaches a terminal state, which is what is under test.
@@ -511,8 +511,11 @@ suite("live: moderation, users and app", () => {
     };
     const finished = await untilTerminal(runId);
     if (secondRunId) await untilTerminal(secondRunId);
+    // The policy has an AI rule, so the run completes (rows end as
+    // provider_error on this app); "error" would mean the wiring is wrong.
+    expect(finished.run.status, finished.run.error_message).toBe("completed");
     expect(finished.run.rows_total).toBe(2);
-    if (finished.run.status === "completed") expect(finished.results).toHaveLength(2);
+    expect(finished.results).toHaveLength(2);
 
     const failedOnly = await harness.call("moderation_get_policy_test_run", {
       id: runId,
