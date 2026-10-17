@@ -50,8 +50,19 @@ jobs:
 
   live-tests:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Main pushes and same-repo PRs. Fork PRs never receive secrets, so they
+    # are left out rather than skipped with a misleading green.
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
     needs: build-and-test
+    # Every run shares one scratch Stream app. Two at once would race on
+    # fixtures and trip DeleteUsers' 6/min limit, so runs queue instead.
+    concurrency:
+      group: stream-live-tests
+      cancel-in-progress: false
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v5
@@ -69,7 +80,9 @@ jobs:
           STREAM_API_SECRET: ${{ secrets.STREAM_API_SECRET }}
         run: |
           if [ -z "$STREAM_API_KEY" ] || [ -z "$STREAM_API_SECRET" ]; then
-            echo "Skipping live tests — STREAM_API_KEY/STREAM_API_SECRET secrets are not configured."
-            exit 0
+            # Secrets are configured for this repo; their absence is a setup
+            # fault, and passing here would be a green that tested nothing.
+            echo "::error::STREAM_API_KEY/STREAM_API_SECRET secrets are missing."
+            exit 1
           fi
           npm run test:live
