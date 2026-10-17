@@ -411,6 +411,56 @@ suite("live: channel types, call types and app settings", () => {
     }
   );
 
+  it("reads retention policies and runs, and reaches set/delete without changing anything", async () => {
+    const policies = await harness.call("chat_get_retention_policies", {});
+    expect(Array.isArray(policies.policies)).toBe(true);
+
+    const runs = await harness.call("chat_get_retention_policy_runs", { limit: 5 });
+    expect(Array.isArray(runs.runs)).toBe(true);
+
+    // Never enable a policy here: Stream emails every team admin on each
+    // enable/update, and the policy hard-deletes data. An out-of-range value
+    // reaches Stream and is refused — proving the request shape, changing
+    // nothing. (Stream enforces 24..87600; its docs say 43800.)
+    const refused = await harness.callExpectingError("chat_set_retention_policy", {
+      policy: "old-messages",
+      max_age_hours: 1,
+    });
+    expect(refused).toMatch(/max_age_hours must be 24 or greater/);
+
+    // Deleting a policy that is not set succeeds without effect — but only
+    // when none is set, so never touch a policy this app actually has.
+    if (!policies.policies.some((p: any) => p.policy === "inactive-channels")) {
+      await harness.call("chat_delete_retention_policy", { policy: "inactive-channels" });
+    } else {
+      throw new Error(
+        "scratch app has an inactive-channels retention policy; refusing to delete it"
+      );
+    }
+  });
+
+  it("reaches the chat import endpoints without importing anything", async () => {
+    const listed = await harness.call("chat_list_imports", {});
+    expect(Array.isArray(listed.import_tasks)).toBe(true);
+
+    const url = await harness.call("chat_create_import_url", { filename: "mcptest.json" });
+    expect(url.path).toMatch(/mcptest\.json$/);
+    expect(new URL(url.upload_url).protocol).toBe("https:");
+
+    // Nothing was uploaded, so a fabricated path is refused before any task
+    // is created.
+    const refused = await harness.callExpectingError("chat_create_import", {
+      path: "mcptest/does-not-exist.json",
+      mode: "insert",
+    });
+    expect(refused).toMatch(/invalid import path/);
+
+    const missing = await harness.callExpectingError("chat_get_import", {
+      id: "00000000-0000-0000-0000-000000000000",
+    });
+    expect(missing).toMatch(/not found/);
+  });
+
   it("reads all MCP resources and prompts against the live API", { timeout: 45_000 }, async () => {
     const { resources } = await harness.listResources();
     expect(resources.map((r) => r.uri)).toEqual(

@@ -1732,6 +1732,52 @@ export const moderationAnalyticsCases: ToolCase[] = [
   },
 ];
 
+export const chatDataCases: ToolCase[] = [
+  {
+    tool: "chat_get_retention_policies",
+    args: {},
+    path: "chat.getRetentionPolicy",
+    payload: undefined,
+  },
+  {
+    tool: "chat_get_retention_policy_runs",
+    args: { filter_conditions: { policy: "old-messages" } },
+    path: "chat.getRetentionPolicyRuns",
+    payload: { filter_conditions: { policy: "old-messages" }, limit: 25 },
+  },
+  {
+    tool: "chat_set_retention_policy",
+    args: { policy: "old-messages", max_age_hours: 4380 },
+    path: "chat.setRetentionPolicy",
+    payload: { policy: "old-messages", max_age_hours: 4380 },
+  },
+  {
+    tool: "chat_delete_retention_policy",
+    args: { policy: "inactive-channels" },
+    path: "chat.deleteRetentionPolicy",
+    payload: { policy: "inactive-channels" },
+  },
+  {
+    tool: "chat_create_import_url",
+    args: { filename: "import.json" },
+    path: "createImportURL",
+    payload: { filename: "import.json" },
+  },
+  {
+    tool: "chat_create_import",
+    args: { path: "123/abc/import.json", mode: "insert" },
+    path: "createImport",
+    payload: { path: "123/abc/import.json", mode: "insert" },
+  },
+  { tool: "chat_list_imports", args: {}, path: "listImports", payload: undefined },
+  {
+    tool: "chat_get_import",
+    args: { id: "imp1" },
+    path: "getImport",
+    payload: { id: "imp1" },
+  },
+];
+
 export const platformCases: ToolCase[] = [
   { tool: "app_list_roles", args: {}, path: "listRoles", payload: undefined },
   {
@@ -1891,6 +1937,7 @@ export const ALL_CASES: ToolCase[] = [
   ...pollCases,
   ...chatAdminCases,
   ...commandAndBatchCases,
+  ...chatDataCases,
   ...moderationCases,
   ...moderationPolicyCases,
   ...moderationAnalyticsCases,
