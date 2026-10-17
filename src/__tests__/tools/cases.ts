@@ -1671,6 +1671,67 @@ export const attendanceCases: ToolCase[] = [
   },
 ];
 
+export const moderationAnalyticsCases: ToolCase[] = [
+  {
+    tool: "moderation_get_flag_count",
+    args: { entity_creator_id: "alice", entity_type: "stream:chat:v1:message" },
+    path: "moderation.getFlagCount",
+    payload: { entity_creator_id: "alice", entity_type: "stream:chat:v1:message" },
+  },
+  {
+    tool: "moderation_list_policy_test_sets",
+    args: {},
+    path: "moderation.listPolicyTestSets",
+    payload: undefined,
+  },
+  {
+    tool: "moderation_get_policy_test_set",
+    args: { id: "pts1" },
+    path: "moderation.getPolicyTestSet",
+    payload: { id: "pts1" },
+  },
+  {
+    tool: "moderation_create_policy_test_set",
+    args: {
+      name: "insults",
+      config_key: "chat:messaging",
+      mode: "check",
+      rows: [{ text: "you idiot", labels: ["INSULT"], recommended_action: "flag" }],
+    },
+    path: "moderation.createPolicyTestSet",
+    payload: {
+      name: "insults",
+      config_key: "chat:messaging",
+      mode: "check",
+      rows: [{ text: "you idiot", labels: ["INSULT"], recommended_action: "flag" }],
+    },
+  },
+  {
+    tool: "moderation_create_policy_test_set",
+    args: { name: "replay", seed: { limit: 50, labels: ["SPAM"] } },
+    path: "moderation.createPolicyTestSet",
+    payload: { name: "replay", seed: { limit: 50, labels: ["SPAM"] } },
+  },
+  {
+    tool: "moderation_delete_policy_test_set",
+    args: { id: "pts1" },
+    path: "moderation.deletePolicyTestSet",
+    payload: { id: "pts1" },
+  },
+  {
+    tool: "moderation_start_policy_test_run",
+    args: { id: "pts1" },
+    path: "moderation.startPolicyTestRun",
+    payload: { id: "pts1" },
+  },
+  {
+    tool: "moderation_get_policy_test_run",
+    args: { id: "ptr1" },
+    path: "moderation.getPolicyTestRun",
+    payload: { id: "ptr1" },
+  },
+];
+
 export const platformCases: ToolCase[] = [
   { tool: "app_list_roles", args: {}, path: "listRoles", payload: undefined },
   {
@@ -1832,6 +1893,7 @@ export const ALL_CASES: ToolCase[] = [
   ...commandAndBatchCases,
   ...moderationCases,
   ...moderationPolicyCases,
+  ...moderationAnalyticsCases,
   ...callCases,
   ...participantCases,
   ...mediaCases,

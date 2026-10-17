@@ -6,6 +6,7 @@ import { commandAndBatchTools } from "./chat/commands.js";
 import { messageTools } from "./chat/messages.js";
 import { pollTools } from "./chat/polls.js";
 import type { AnyToolDef } from "./define.js";
+import { moderationAnalyticsTools } from "./moderation/analytics.js";
 import { blocklistTools } from "./moderation/blocklists.js";
 import { moderationTools } from "./moderation/moderation.js";
 import { moderationPolicyTools } from "./moderation/policies.js";
@@ -36,6 +37,7 @@ export const ALL_TOOLS: readonly AnyToolDef[] = [
   ...moderationTools,
   ...blocklistTools,
   ...moderationPolicyTools,
+  ...moderationAnalyticsTools,
   ...callTools,
   ...participantTools,
   ...mediaTools,

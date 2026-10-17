@@ -1035,7 +1035,7 @@ Reactivate multiple previously deactivated users asynchronously in a single batc
 | `restore_channels` | boolean | no | Restore channels that were marked deleted on deactivation |
 | `created_by_id` | string | no | ID of the user performing the reactivation |
 
-## Toolset `moderation` (28 tools)
+## Toolset `moderation` (35 tools)
 
 ### `moderation_ban_user` — **destructive**, idempotent
 
@@ -1364,5 +1364,68 @@ List moderation appeals with optional filtering, sorting and cursor pagination.
 | `limit` | integer | no | Max results to return (default: 25, max: 100) |
 | `next` | string | no | Cursor from a previous response's `next` field |
 | `prev` | string | no | Cursor from a previous response's `prev` field |
+
+### `moderation_get_flag_count` — read-only, idempotent
+
+Count how many flags a user's content has received, optionally for one entity type. A quick repeat-offender check before moderation_query_flags; returns 0 for users with no flags.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `entity_creator_id` | string | **yes** | User ID whose content was flagged |
+| `entity_type` | string | no | Entity type filter, e.g. stream:chat:v1:message or stream:user |
+
+### `moderation_list_policy_test_sets` — read-only, idempotent
+
+List the app's moderation policy test sets (Stream "Evaluations"): fixed batches of content re-run through a policy to see how a rule change would decide them. Each set shows its latest run.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| _(none)_ | | | |
+
+### `moderation_get_policy_test_set` — read-only, idempotent
+
+Get a policy test set with its rows, its last 10 runs (newest first) and baseline_run_id — the first completed run, which later runs are scored against.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | **yes** | Policy test set ID |
+
+### `moderation_create_policy_test_set`
+
+Create a policy test set to dry-run a moderation policy before changing it with moderation_upsert_config or moderation_upsert_rule. Pass either rows (your own content with expected labels/actions) or seed (sample up to 1000 recent production items) — exactly one. Set text is frozen, so later runs stay comparable. Run it with moderation_start_policy_test_run.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | **yes** | Set name, unique within the app |
+| `config_key` | string | no | Moderation config key every row runs against. Omit to replay each row under the policy it originally ran under (seeded sets). |
+| `mode` | `check` \| `labels` | no | Execution target: check (the moderation check pipeline) or labels (the Labels API). Default: labels when the org has the Labels API enabled, else check. check-mode runs need an AI provider (LLM or Bodyguard) enabled on the policy. |
+| `team` | string | no | Team scope for the config (multi-tenant apps) |
+| `rows` | object[] | no | Content to test (max 1000). Mutually exclusive with seed. |
+| `seed` | object | no | Sample production content instead of passing rows. Fails if nothing matches. Mutually exclusive with rows. |
+
+### `moderation_delete_policy_test_set` — **destructive**, idempotent
+
+Permanently delete a policy test set and all its runs and results. Stream refuses while a run is pending or running.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | **yes** | Policy test set ID |
+
+### `moderation_start_policy_test_run`
+
+Run a policy test set through its policy's current configuration. Each row is a real moderation call, billed at production rates. Asynchronous: returns a pending run — poll moderation_get_policy_test_run until it finishes (Terminal statuses are completed, error and cancelled). Only one run per set may be in progress, and the first completed run becomes the baseline later runs are scored against.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | **yes** | Policy test set ID |
+
+### `moderation_get_policy_test_run` — read-only, idempotent
+
+Get a policy test run's status, progress (rows_completed / rows_total) and, once finished, per-row results: expected vs actual labels and action, passed, and failure_reason (label_mismatch, action_mismatch, provider_error, policy_not_found). Terminal statuses are completed, error and cancelled; results are absent until then. metrics totals appear on runs after the baseline.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | **yes** | Policy test run ID |
+| `only_failed` | boolean | no | Return only rows that failed or could not be scored (passed is not true) |
 
 Every tool also accepts `verbose` (boolean) to return the raw Stream response instead of the compacted view.
