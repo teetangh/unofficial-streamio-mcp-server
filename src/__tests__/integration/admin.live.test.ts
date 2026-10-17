@@ -92,7 +92,7 @@ suite("live: channel types, call types and app settings", () => {
     expect(deleted.duration).toBeDefined();
   });
 
-  it("creates, updates and deletes a call type", { timeout: 60_000 }, async () => {
+  it("creates, updates and deletes a call type", { timeout: 120_000 }, async () => {
     const created = await harness.call("video_create_call_type", {
       name: callTypeName,
       settings: {
@@ -128,7 +128,7 @@ suite("live: channel types, call types and app settings", () => {
 
   // Three sequential round trips to Stream; the 5s default is not enough
   // reliably, and a timeout here fails the whole live gate on main.
-  it("round-trips an app setting without changing it", { timeout: 60_000 }, async () => {
+  it("round-trips an app setting without changing it", { timeout: 120_000 }, async () => {
     const before = await harness.call("app_get_settings");
     const current = before.app.async_url_enrich_enabled;
     // Coercing an absent value to false would make the round-trip assert
