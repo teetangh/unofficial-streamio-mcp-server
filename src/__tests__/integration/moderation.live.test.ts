@@ -489,20 +489,28 @@ suite("live: moderation, users and app", () => {
     const runId: string = started.run.id;
     expect(started.run.status).toBe("pending");
 
-    // One run per set: Stream refuses a second while the first is live.
+    // One run per set: Stream refuses a second while the first is live. Runs
+    // here finish in milliseconds, though, so the second can also succeed —
+    // and then it must finish too, or deleting the set is refused.
     const second = await harness.callEither("moderation_start_policy_test_run", { id: setId });
     if (!second.ok) expect(second.text).toMatch(/already in progress/);
+    const secondRunId: string | undefined = second.ok ? JSON.parse(second.text).run.id : undefined;
 
-    let finished: any;
-    await expect
-      .poll(
-        async () => {
-          finished = await harness.call("moderation_get_policy_test_run", { id: runId });
-          return ["completed", "error", "cancelled"].includes(finished.run.status);
-        },
-        { timeout: 60_000, interval: 2_000 }
-      )
-      .toBe(true);
+    const untilTerminal = async (id: string) => {
+      let last: any;
+      await expect
+        .poll(
+          async () => {
+            last = await harness.call("moderation_get_policy_test_run", { id });
+            return ["completed", "error", "cancelled"].includes(last.run.status);
+          },
+          { timeout: 60_000, interval: 2_000 }
+        )
+        .toBe(true);
+      return last;
+    };
+    const finished = await untilTerminal(runId);
+    if (secondRunId) await untilTerminal(secondRunId);
     expect(finished.run.rows_total).toBe(2);
     if (finished.run.status === "completed") expect(finished.results).toHaveLength(2);
 
