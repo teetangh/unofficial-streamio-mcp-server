@@ -200,6 +200,10 @@ describe("MCP server", () => {
       "app_update_external_storage",
       "app_delete_external_storage",
       "app_check_external_storage",
+      "app_check_sqs",
+      "app_check_sns",
+      "app_check_gcp_pubsub",
+      "app_query_team_usage_stats",
     ];
     expect(tools.map((tool) => tool.name).sort()).toEqual([...expected].sort());
     expect(toolCount).toBe(expected.length);

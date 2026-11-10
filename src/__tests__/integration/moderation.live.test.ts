@@ -548,4 +548,48 @@ suite("live: moderation, users and app", () => {
     const result = await harness.call("chat_delete_message", { message_id: messageId, hard: true });
     expect(result.message.id).toBe(messageId);
   });
+  // Last on purpose, with its own users: a future-channel ban outlives unban
+  // and would block these users in every channel the banner creates later.
+  it("records a future-channel ban that unban does not lift", { timeout: 60_000 }, async () => {
+    const banner = fixtureId("fbowner");
+    const target = fixtureId("fbtarget");
+    await harness.call("chat_upsert_users", { users: [{ id: banner }, { id: target }] });
+    harness.trackUsers(banner, target);
+    const cid = `messaging:${fixtureId("fbchan")}`;
+    const [, channelId] = cid.split(":");
+    await harness.call("chat_create_channel", {
+      type: "messaging",
+      id: channelId,
+      created_by_id: banner,
+      members: [banner, target],
+    });
+    harness.deleteChannelOnCleanup("messaging", channelId);
+
+    await harness.call("moderation_ban_user", {
+      target_user_id: target,
+      banned_by_id: banner,
+      channel_cid: cid,
+      ban_from_future_channels: true,
+      reason: "mcptest future ban",
+    });
+
+    const byBanner = await harness.call("moderation_query_future_channel_bans", {
+      user_id: banner,
+      include_total: true,
+    });
+    expect(byBanner.bans.map((b: any) => b.user?.id)).toContain(target);
+    expect(byBanner.total).toBeGreaterThanOrEqual(1);
+
+    const ofTarget = await harness.call("moderation_query_future_channel_bans", {
+      target_user_id: target,
+    });
+    expect(ofTarget.bans.map((b: any) => b.banned_by?.id)).toContain(banner);
+
+    // The documented trap: lifting the channel ban leaves the future ban.
+    await harness.call("moderation_unban_user", { target_user_id: target, channel_cid: cid });
+    const afterUnban = await harness.call("moderation_query_future_channel_bans", {
+      user_id: banner,
+    });
+    expect(afterUnban.bans.map((b: any) => b.user?.id)).toContain(target);
+  });
 });

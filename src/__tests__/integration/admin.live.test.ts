@@ -461,6 +461,46 @@ suite("live: channel types, call types and app settings", () => {
     expect(missing).toMatch(/not found/);
   });
 
+  it("checks webhook targets without echoing credentials", { timeout: 60_000 }, async () => {
+    const secret = `mcptest-fake-secret-${fixtureId("wh")}`;
+
+    // This app saves no SQS/SNS target; with no arguments Stream would answer
+    // "ok" anyway, so the tools refuse rather than report a false green.
+    const noSqs = await harness.callExpectingError("app_check_sqs", {});
+    expect(noSqs).toMatch(/nothing to check/);
+    const noSns = await harness.callExpectingError("app_check_sns", {});
+    expect(noSns).toMatch(/nothing to check/);
+
+    // Fake credentials reach AWS and are refused; nothing is published.
+    const sqs = await harness.call("app_check_sqs", {
+      sqs_url: "https://sqs.us-east-1.amazonaws.com/000000000000/mcptest",
+      sqs_key: "AKIAMCPTESTFAKE00000",
+      sqs_secret: secret,
+    });
+    expect(sqs.status).toBe("error");
+    expect(sqs.error).toMatch(/InvalidClientTokenId/);
+    expect(JSON.stringify(sqs)).not.toContain(secret);
+
+    const sns = await harness.call("app_check_sns", {
+      sns_topic_arn: "arn:aws:sns:us-east-1:000000000000:mcptest",
+      sns_key: "AKIAMCPTESTFAKE00000",
+      sns_secret: secret,
+    });
+    expect(sns.status).toBe("error");
+    expect(JSON.stringify(sns)).not.toContain(secret);
+
+    const gcp = await harness.call("app_check_gcp_pubsub", {
+      gcp_pubsub_topic: "projects/mcptest-nonexistent/topics/mcptest",
+    });
+    expect(gcp.status).toBe("error");
+    expect(gcp.error).toMatch(/project not found/i);
+  });
+
+  it("queries team usage stats", async () => {
+    const usage = await harness.call("app_query_team_usage_stats", { month: "2026-09" });
+    expect(Array.isArray(usage.teams)).toBe(true);
+  });
+
   it("reads all MCP resources and prompts against the live API", { timeout: 45_000 }, async () => {
     const { resources } = await harness.listResources();
     expect(resources.map((r) => r.uri)).toEqual(

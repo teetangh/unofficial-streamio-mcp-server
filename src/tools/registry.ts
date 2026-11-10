@@ -1,5 +1,6 @@
 import { appTools } from "./app/app.js";
 import { platformTools } from "./app/platform.js";
+import { webhookAndUsageTools } from "./app/webhooks.js";
 import { chatAdminTools } from "./chat/admin.js";
 import { channelTools } from "./chat/channels.js";
 import { commandAndBatchTools } from "./chat/commands.js";
@@ -48,6 +49,7 @@ export const ALL_TOOLS: readonly AnyToolDef[] = [
   ...attendanceTools,
   ...appTools,
   ...platformTools,
+  ...webhookAndUsageTools,
 ];
 
 export function getTool(name: string): AnyToolDef | undefined {

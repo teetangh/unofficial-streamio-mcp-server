@@ -716,7 +716,7 @@ Permanently delete an inbound SIP routing rule by its unique ID.
 | --- | --- | --- | --- |
 | `id` | string | **yes** | SIP routing rule ID to delete |
 
-## Toolset `app` (19 tools)
+## Toolset `app` (23 tools)
 
 ### `app_get_settings` — read-only, idempotent
 
@@ -906,5 +906,48 @@ Test connectivity and write permissions for a configured external storage bucket
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `name` | string | **yes** | Name of the external storage configuration to test |
+
+### `app_check_sqs`
+
+Test that Stream can publish to an AWS SQS queue by sending it a test message. Pass sqs_url with sqs_key/sqs_secret to test a queue before saving it, or nothing to test the queue saved on the app. Returns status "ok" or "error"; on error, `error` carries the provider's message (e.g. InvalidClientTokenId, topic not found). Credentials are never echoed back.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `sqs_url` | string | no | Queue URL, e.g. https://sqs.us-east-1.amazonaws.com/123/queue |
+| `sqs_key` | string | no | AWS access key ID |
+| `sqs_secret` | string | no | AWS secret access key |
+
+### `app_check_sns`
+
+Test that Stream can publish to an AWS SNS topic by sending it a test message. Pass sns_topic_arn with sns_key/sns_secret to test a topic before saving it, or nothing to test the topic saved on the app. Returns status "ok" or "error"; on error, `error` carries the provider's message (e.g. InvalidClientTokenId, topic not found). Credentials are never echoed back.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `sns_topic_arn` | string | no | Topic ARN, e.g. arn:aws:sns:us-east-1:123:topic |
+| `sns_key` | string | no | AWS access key ID |
+| `sns_secret` | string | no | AWS secret access key |
+
+### `app_check_gcp_pubsub`
+
+Test that Stream can publish to a Google Cloud Pub/Sub topic by sending it a test message. Returns status "ok" or "error"; on error, `error` carries the provider's message (e.g. InvalidClientTokenId, topic not found). Credentials are never echoed back.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `gcp_pubsub_topic` | string | **yes** | Fully qualified topic: projects/{project}/topics/{topic} |
+| `gcp_pubsub_event_based_ordering_key_enabled` | boolean | no | Publish with an ordering key through the regional endpoint, as an ordered hook would |
+| `gcp_pubsub_region` | string | no | GCP region for the regional endpoint; required when ordering is enabled |
+
+### `app_query_team_usage_stats` — read-only, idempotent
+
+Chat usage per team (multi-tenant apps): messages, users, engaged users, concurrent connections, translations and image moderations. Pass month for monthly totals, or start_date + end_date for a daily breakdown — not both. Team "" means users with no team.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `month` | string | no | Month as YYYY-MM, for aggregated monthly values |
+| `start_date` | string | no | Range start as YYYY-MM-DD (with end_date) |
+| `end_date` | string | no | Range end as YYYY-MM-DD (with start_date) |
+| `team` | string | no | One team ID; "" selects users without a team. Cannot be combined with next. |
+| `limit` | integer | no | Teams per page (default 30, max 30) |
+| `next` | string | no | Cursor from a previous page |
 
 Every tool also accepts `verbose` (boolean) to return the raw Stream response instead of the compacted view.
