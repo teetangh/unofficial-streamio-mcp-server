@@ -51,7 +51,12 @@ const checkSqs = defineTool({
     sqs_secret: z.string().optional().describe("AWS secret access key"),
   },
   handler: async (args, client) => {
-    if (!args.sqs_url) await assertSavedTarget(client, "SQS");
+    if (!args.sqs_url) {
+      if (args.sqs_key || args.sqs_secret) {
+        throw new ToolInputError("Pass `sqs_url` with `sqs_key`/`sqs_secret`.");
+      }
+      await assertSavedTarget(client, "SQS");
+    }
     return client.checkSQS(
       defined({ sqs_url: args.sqs_url, sqs_key: args.sqs_key, sqs_secret: args.sqs_secret })
     );
@@ -73,7 +78,12 @@ const checkSns = defineTool({
     sns_secret: z.string().optional().describe("AWS secret access key"),
   },
   handler: async (args, client) => {
-    if (!args.sns_topic_arn) await assertSavedTarget(client, "SNS");
+    if (!args.sns_topic_arn) {
+      if (args.sns_key || args.sns_secret) {
+        throw new ToolInputError("Pass `sns_topic_arn` with `sns_key`/`sns_secret`.");
+      }
+      await assertSavedTarget(client, "SNS");
+    }
     return client.checkSNS(
       defined({
         sns_topic_arn: args.sns_topic_arn,
@@ -147,6 +157,12 @@ const queryTeamUsageStats = defineTool({
   handler: async (args, client) => {
     if (args.month && (args.start_date || args.end_date)) {
       throw new ToolInputError("Pass `month` or `start_date`/`end_date`, not both.");
+    }
+    if (Boolean(args.start_date) !== Boolean(args.end_date)) {
+      throw new ToolInputError("Pass `start_date` and `end_date` together.");
+    }
+    if (args.team !== undefined && args.next) {
+      throw new ToolInputError("`team` cannot be combined with `next`.");
     }
     return client.chat.queryTeamUsageStats(
       defined({

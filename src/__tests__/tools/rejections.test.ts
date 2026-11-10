@@ -80,6 +80,10 @@ const REJECTIONS: [string, Record<string, unknown>, RegExp][] = [
     /`direct_routing_configs` or `pin_routing_configs`/,
   ],
   ["app_query_team_usage_stats", { month: "2026-09", start_date: "2026-09-01" }, /not both/],
+  ["app_query_team_usage_stats", { start_date: "2026-09-01" }, /together/],
+  ["app_query_team_usage_stats", { team: "", next: "c1" }, /cannot be combined/],
+  ["app_check_sqs", { sqs_secret: "s" }, /Pass `sqs_url`/],
+  ["app_check_sns", { sns_key: "k" }, /Pass `sns_topic_arn`/],
   [
     "moderation_query_future_channel_bans",
     {},
